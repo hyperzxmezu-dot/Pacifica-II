@@ -1,0 +1,154 @@
+name: Pacifica-II
+version: 1.21.8
+main: com.districtx.pacifica.PacificaPlugin
+api-version: '1.21'
+author: DistrictX Developers Official
+softdepend:
+  - Vault
+  - Essentials
+  - EssentialsX
+  - CrackShot
+  - WeaponMechanics
+  - LuckPerms
+  - PlaceholderAPI
+commands:
+  spawn:
+    description: Teleport to spawn through the taxi system.
+  warp:
+    description: Teleport to a random configured warp.
+  setspawn:
+    description: Set the Pacifica spawn location.
+    permission: pacifica.admin
+  setsafespawn:
+    description: Set the Safe Spawn Pos 1 or Pos 2.
+    usage: /setsafespawn [1|2]
+    permission: pacifica.admin
+  rndmwarpset:
+    description: Create or update a random warp.
+    usage: /rndmwarpset <name>
+    permission: pacifica.admin
+  taxi:
+    description: Open the taxi or link a taxi NPC.
+  trashcan:
+    description: Configure or open a trash can.
+    aliases:
+      - trash
+  tpa:
+    description: Send a teleport request.
+  tpaccept:
+    description: Accept a teleport request.
+  tpdeny:
+    description: Deny a teleport request.
+  tpcancel:
+    description: Cancel your outgoing teleport request.
+  ct:
+    description: Show your current CombatTag status.
+  gms:
+    description: Change your gamemode to Survival.
+    permission: pacifica.gamemode.survival
+  gma:
+    description: Change your gamemode to Adventure.
+    permission: pacifica.gamemode.adventure
+  gmc:
+    description: Change your gamemode to Creative.
+    permission: pacifica.gamemode.creative
+  gmsp:
+    description: Change your gamemode to Spectator.
+    permission: pacifica.gamemode.spectator
+  heal:
+    description: Restore health and hunger.
+    permission: pacifica.essentials.heal
+  feed:
+    description: Restore hunger.
+    permission: pacifica.essentials.feed
+  invsee:
+    description: View a player's inventory.
+    usage: /invsee <player>
+    permission: pacifica.essentials.invsee
+  afk:
+    description: Toggle your AFK status.
+    permission: pacifica.essentials.afk
+  ec:
+    description: Open your Ender Chest.
+    aliases:
+      - enderchest
+    permission: pacifica.essentials.enderchest
+  pacificareload:
+    description: Reload Pacifica-II configuration safely.
+    permission: pacifica.admin
+  tag:
+    description: Manage your equipped cosmetic tag.
+    aliases:
+      - tags
+    usage: /tag
+  tagadmin:
+    description: Manage Pacifica cosmetic tags.
+    usage: /tagadmin <create|edit|give|remove|delete|source|rarity> ...
+permissions:
+  pacifica.admin:
+    default: op
+  pacifica.trashcan.use:
+    default: true
+  pacifica.trashcan.addprice:
+    default: op
+  pacifica.gamemode:
+    default: op
+    children:
+      pacifica.gamemode.survival: true
+      pacifica.gamemode.adventure: true
+      pacifica.gamemode.creative: true
+      pacifica.gamemode.spectator: true
+  pacifica.gamemode.survival:
+    default: op
+  pacifica.gamemode.adventure:
+    default: op
+  pacifica.gamemode.creative:
+    default: op
+  pacifica.gamemode.spectator:
+    default: op
+  pacifica.essentials.heal:
+    default: op
+  pacifica.essentials.feed:
+    default: op
+  pacifica.essentials.invsee:
+    default: op
+  pacifica.essentials.invsee.edit:
+    default: op
+  pacifica.essentials.afk:
+    default: true
+  pacifica.essentials.enderchest:
+    default: true
+  pacifica.chat.color:
+    default: true
+  pacifica.chat.format:
+    default: op
+  pacifica.chat.hex:
+    default: op
+  pacifica.tag:
+    default: true
+  pacifica.tag.use:
+    default: true
+  pacifica.tag.admin:
+    default: op
+    children:
+      pacifica.tag.admin.create: true
+      pacifica.tag.admin.edit: true
+      pacifica.tag.admin.give: true
+      pacifica.tag.admin.remove: true
+      pacifica.tag.admin.delete: true
+      pacifica.tag.admin.source: true
+      pacifica.tag.admin.rarity: true
+  pacifica.tag.admin.create:
+    default: op
+  pacifica.tag.admin.edit:
+    default: op
+  pacifica.tag.admin.give:
+    default: op
+  pacifica.tag.admin.remove:
+    default: op
+  pacifica.tag.admin.delete:
+    default: op
+  pacifica.tag.admin.source:
+    default: op
+  pacifica.tag.admin.rarity:
+    default: op

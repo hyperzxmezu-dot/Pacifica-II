@@ -1,0 +1,37 @@
+tag-system:
+  enabled: true
+  gui:
+    title: '&b&lTags'
+    tag-material: NAME_TAG
+  rarity:
+    common: '&a&lCommon'
+    uncommon: '&a&lUncommon'
+    rare: '&1&lRare'
+    epic: '&5&lEpic'
+    legendary: '&6&lLegendary'
+  source:
+    event: '&eEvent Tag'
+    cosmetics: '&bCosmetic'
+  event-removable: false
+  messages:
+    unlocked: '&8&l[ &6&lCOSMETICS &8&l] &7You unlocked %rarity% %tag%&7!'
+  physical-item:
+    material: NAME_TAG
+    namespace: pacifica
+    item-key: tag_item
+    id-key: tag_id
+    name: '%tag%'
+    lore:
+      - '&1Items'
+      - '&7'
+      - '&7Type: Tags'
+      - '&7Rarity: %rarity%'
+      - '&7'
+      - '&eRight-click to unlock'
+  placeholder:
+    enabled: true
+    placeholder: '%TAG%'
+  tab:
+    enabled: true
+  nametag:
+    enabled: true

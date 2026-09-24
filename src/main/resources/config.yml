@@ -1,0 +1,68 @@
+config-version: 4
+plugin:
+  enabled: true
+  debug: false
+integrations:
+  placeholderapi: true
+  luckperms: true
+separate-inventory:
+  enabled: true
+  modes:
+    survival: true
+    creative: true
+    adventure: true
+    spectator: true
+  storage:
+    type: yaml
+tab:
+  enabled: true
+  update-period-ticks: 20
+  header:
+    - '<#FFFFFF>&m                                                </#FFFF00>'
+    - '&6✬ &8&lDistrict&4&lX &6&lNetwork &6✬'
+    - ''
+    - '&6▶ &7You are currently in: &2&l&nPACIFICA II &7(&2&l&nRoleplay City&r &r/ &2&l&nGTA&7) &6◀'
+    - ''
+    - '&7Player Online &a&n%online%'
+    - ''
+  footer:
+    - ''
+    - '&8&lDistrict&4&lX &7➟ &6&lv1.0'
+    - '&r⇒ &2&l&oC&d&l&oh&6&l&oi&3&l&ol&b&l&ol&5&l&oi&e&l&on &f&l&ol&9&l&oi&6&l&ok &2&l&oe &3&l&oa &d&l&oi&b&l&ol&f&l&ol&9&l&oa&e&l&oi&b&l&on &r⇐'
+    - ''
+    - '<#FFFFFF>&m                                                </#FFFF00>'
+  player-name-format: '%prefix%%tag%%name%%suffix%'
+  fallback-prefix: ''
+  fallback-suffix: ''
+  luckperms:
+    enabled: true
+motd:
+  server-list:
+    enabled: true
+  Server-MOTD:
+    Line-1: '    &6✬ &8&lDistrict&4&lX &6&lNetwork &8[ &a&lx1.21.8 Only&8 ]&6✬'
+    Line-2: '   &7&l&k|&f&l&k|&r &8► &2&lPACIFICA II &7(&2&l&nRoleplay City&r&r/ &2&l&nGTA&7) &8◄ &f&l&k|&7&l&k|'
+moderation:
+  anti-chat:
+    block-repeated-messages: true
+    blocked-patterns:
+      - '(?i)https?://'
+      - '(?i)discord\\.gg'
+      - '(?i)join\\s+now'
+  help:
+    header: '&6&lHelp'
+    pages:
+      1:
+        - '&e/spawn &7- Teleport to spawn.'
+        - '&e/warp &7- Teleport to a random warp.'
+        - '&e/taxi &7- Open the taxi menu.'
+        - '&e/ct &7- Check CombatTag status.'
+protection:
+  protected-items:
+    - CHEST
+    - COMPASS
+    - CLOCK
+  weapons:
+    crackshot: []
+    weaponmechanics: []
+    minecraft: []

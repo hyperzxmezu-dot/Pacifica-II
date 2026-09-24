@@ -1,0 +1,40 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.districtx'
+version = '1.21.8'
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
+    maven { url = 'https://jitpack.io' }
+}
+
+dependencies {
+    compileOnly 'org.spigotmc:spigot-api:1.21.8-R0.1-SNAPSHOT'
+    compileOnly 'com.github.MilkBowl:VaultAPI:1.7'
+    compileOnly 'net.luckperms:api:5.4'
+    compileOnly 'me.clip:placeholderapi:2.11.6'
+    implementation 'com.github.cryptomorin:XSeries:13.0.0'
+    implementation 'org.xerial:sqlite-jdbc:3.46.1.0'
+    testImplementation 'org.spigotmc:spigot-api:1.21.8-R0.1-SNAPSHOT'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('publicApiModelTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.districtx.pacifica.api.PublicApiModelTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('publicApiModelTest')
+}

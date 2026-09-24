@@ -1,0 +1,7 @@
+backpack:
+  size-permissions:
+    - 'pacifica.bpsize.1:3'
+    - 'pacifica.bpsize.2:4'
+    - 'pacifica.bpsize.3:5'
+    - 'pacifica.bpsize.4:6'
+    - 'pacifica.bpsize.5:7'

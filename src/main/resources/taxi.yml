@@ -1,0 +1,40 @@
+taxi-gui:
+  title: '&7&lTaxi'
+  buttons:
+    spawn:
+      slot: 13
+      material: BED
+      name: '&a&lSpawn'
+      lore: '&7Teleport to spawn!'
+    quick-play:
+      slot: 11
+      material: EMERALD
+      name: '&a&lQuick Play'
+      lore: '&7Teleport to a random location!'
+    warps:
+      slot: 31
+      material: ENDER_PEARL
+      name: '&e&lWarps'
+      lore: '&7Browse the warp list!'
+    player:
+      slot: 29
+      material: PLAYER_HEAD
+      name: '&e&lPlayer'
+      lore: '&7Send a teleport request'
+    house:
+      slot: 15
+      material: IRON_DOOR
+      name: '&1House'
+      lore: '&7Travel to one of your houses!'
+tpa: {}
+teleport:
+  cancel-on-move: true
+  countdown-seconds: 10
+  quick-play-countdown-seconds: 5
+  final-effects-duration-seconds: 2
+  sound: UI_BUTTON_CLICK
+  success-sound: BLOCK_FIRE_EXTINGUISH
+  countdown-sound-thresholds: [10, 5, 4, 3, 2, 1]
+  spawn-guard-status-key: spawn.guard
+spawn-protection:
+  duration-seconds: 7

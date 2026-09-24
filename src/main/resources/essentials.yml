@@ -1,0 +1,17 @@
+essentials:
+  enabled: true
+  heal:
+    enabled: true
+  feed:
+    enabled: true
+  invsee:
+    enabled: true
+    allow-edit: false
+  afk:
+    enabled: true
+    remove-on-move: true
+    remove-on-chat: true
+    remove-on-command: true
+    remove-on-interaction: true
+  enderchest:
+    enabled: true

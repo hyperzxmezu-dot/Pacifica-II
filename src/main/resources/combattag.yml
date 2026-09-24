@@ -1,0 +1,22 @@
+combattag:
+  duration-seconds: 20
+  send-completion-message: false
+  allowed-commands:
+    - ct
+  economy:
+    enabled: true
+    victim-loss-percent: 20.0
+wasted:
+  duration-seconds: 5
+  killer-tracking-range: 32
+messages:
+  pvp:
+    - 'You lost the fight.'
+    - 'Better luck next time.'
+    - 'You were eliminated.'
+  starvation:
+    - 'You forgot to eat.'
+    - 'Hunger got you.'
+  fall:
+    - 'Watch your step.'
+    - 'That was a long way down.'

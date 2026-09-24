@@ -1,0 +1,11 @@
+chat:
+  enabled: true
+  format: "%luckperms_prefix% %tag% %player_displayname% &f%message%"
+  colors:
+    enabled: true
+    hex: false
+    formatting: true
+  integrations:
+    luckperms: true
+    placeholderapi: true
+    tags: true
