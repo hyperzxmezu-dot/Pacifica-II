@@ -18,7 +18,7 @@ public final class WarpMenu extends BaseMenu {
         this(plugin, player, page, false);
     }
     public WarpMenu(PacificaPlugin plugin, Player player, int page, boolean taxi) {
-        super(plugin, player, "&7&lWarp List", page);
+        super(plugin, player, "&2&lGrab Service: &e&lWarps", page);
         this.taxi = taxi;
         names = plugin.warps().names();
         int start = page * CONTENT.length;

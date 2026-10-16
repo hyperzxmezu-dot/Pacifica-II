@@ -9,6 +9,7 @@ repositories {
     mavenCentral()
     maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
     maven { url = 'https://jitpack.io' }
+    maven { url = 'https://mvn.wesjd.net/' }
 }
 
 dependencies {
@@ -18,6 +19,7 @@ dependencies {
     compileOnly 'me.clip:placeholderapi:2.11.6'
     implementation 'com.github.cryptomorin:XSeries:13.0.0'
     implementation 'org.xerial:sqlite-jdbc:3.46.1.0'
+    implementation 'net.wesjd:anvilgui:1.10.13-SNAPSHOT'
     testImplementation 'org.spigotmc:spigot-api:1.21.8-R0.1-SNAPSHOT'
 }
 

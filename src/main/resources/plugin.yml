@@ -5,32 +5,23 @@ api-version: '1.21'
 author: DistrictX Developers Official
 softdepend:
   - Vault
+  - Pacifica-Core
   - Essentials
   - EssentialsX
   - CrackShot
   - WeaponMechanics
   - LuckPerms
   - PlaceholderAPI
+  - Pacifica-Housing
 commands:
   spawn:
     description: Teleport to spawn through the taxi system.
   warp:
     description: Teleport to a random configured warp.
-  setspawn:
-    description: Set the Pacifica spawn location.
-    permission: pacifica.admin
-  setsafespawn:
-    description: Set the Safe Spawn Pos 1 or Pos 2.
-    usage: /setsafespawn [1|2]
-    permission: pacifica.admin
-  rndmwarpset:
-    description: Create or update a random warp.
-    usage: /rndmwarpset <name>
-    permission: pacifica.admin
   taxi:
-    description: Open the taxi or link a taxi NPC.
+    description: Open the taxi menu.
   trashcan:
-    description: Configure or open a trash can.
+    description: Open a trash can.
     aliases:
       - trash
   tpa:
@@ -73,18 +64,54 @@ commands:
     aliases:
       - enderchest
     permission: pacifica.essentials.enderchest
-  pacificareload:
-    description: Reload Pacifica-II configuration safely.
-    permission: pacifica.admin
+  bribe:
+    description: Offer a bribe or respond to a prisoner's offer.
+    usage: /bribe <amount|accept|deny> [prisoner]
+  bountytrack:
+    description: Track a player with an active bounty.
+    usage: /bountytrack <player|clear>
   tag:
     description: Manage your equipped cosmetic tag.
     aliases:
       - tags
     usage: /tag
-  tagadmin:
-    description: Manage Pacifica cosmetic tags.
-    usage: /tagadmin <create|edit|give|remove|delete|source|rarity> ...
+  adminpii:
+    description: Centralized Pacifica-II administrative command.
+    usage: /adminpii <spawn|warp|taxi|trash|jail|job|tag|supplydrop|reload> ...
+  supply:
+    description: View and summon your available supply drops.
+    usage: /supply
 permissions:
+  pacifica.adminpii:
+    default: op
+    children:
+      pacifica.adminpii.spawn: true
+      pacifica.adminpii.warp: true
+      pacifica.adminpii.taxi: true
+      pacifica.adminpii.trash: true
+      pacifica.adminpii.jail: true
+      pacifica.adminpii.job: true
+      pacifica.adminpii.tag: true
+      pacifica.adminpii.supplydrop: true
+      pacifica.adminpii.reload: true
+  pacifica.adminpii.spawn:
+    default: op
+  pacifica.adminpii.warp:
+    default: op
+  pacifica.adminpii.taxi:
+    default: op
+  pacifica.adminpii.trash:
+    default: op
+  pacifica.adminpii.jail:
+    default: op
+  pacifica.adminpii.job:
+    default: op
+  pacifica.adminpii.tag:
+    default: op
+  pacifica.adminpii.supplydrop:
+    default: op
+  pacifica.adminpii.reload:
+    default: op
   pacifica.admin:
     default: op
   pacifica.trashcan.use:
@@ -151,4 +178,50 @@ permissions:
   pacifica.tag.admin.source:
     default: op
   pacifica.tag.admin.rarity:
+    default: op
+  pacifica.job.criminal:
+    default: true
+  pacifica.job.cop:
+    default: true
+  pacifica.job.hitman:
+    default: true
+  pacifica.job.medic:
+    default: true
+  pacifica.job.bypass.cooldown:
+    default: op
+  pacifica.job.bypass.level:
+    default: op
+  pacifica.wanted.view:
+    default: true
+  pacifica.wanted.bypass:
+    default: op
+  pacifica.jail.admin:
+    default: op
+    children:
+      pacifica.jail.admin.setspawn: true
+      pacifica.jail.admin.spawn: true
+      pacifica.jail.admin.release: true
+      pacifica.jail.admin.status: true
+      pacifica.jail.admin.reload: true
+  pacifica.jail.admin.setspawn:
+    default: op
+  pacifica.jail.admin.spawn:
+    default: op
+  pacifica.jail.admin.release:
+    default: op
+  pacifica.jail.admin.status:
+    default: op
+  pacifica.jail.admin.reload:
+    default: op
+  pacifica.arrest.use:
+    default: true
+  pacifica.bribe.use:
+    default: true
+  pacifica.bounty.track:
+    default: true
+  pacifica.bounty.claim:
+    default: true
+  pacifica.medic.use:
+    default: true
+  pacifica.job.admin.npc:
     default: op

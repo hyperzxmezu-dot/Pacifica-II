@@ -7,6 +7,10 @@ import com.districtx.pacifica.api.taxi.TaxiReason;
 import com.districtx.pacifica.api.taxi.TaxiRequest;
 import com.districtx.pacifica.api.taxi.TaxiResult;
 import com.districtx.pacifica.api.taxi.TeleportRequest;
+import com.districtx.pacifica.listener.DeathDropLogicTest;
+import com.districtx.pacifica.service.SafeSpawnLogicTest;
+import com.districtx.pacifica.service.JobsWantedLogicTest;
+import com.districtx.pacifica.service.BountyDropProbabilityTest;
 import java.util.UUID;
 import org.bukkit.Location;
 
@@ -16,6 +20,10 @@ public final class PublicApiModelTest {
         taxiRequestRetainsTaxiReasonAndApiResultIsTyped();
         tagSnapshotExposesOnlyItsImmutableDefinitionValues();
         unavailableServicesFailSafelyWithoutPacificasServerRegistration();
+        SafeSpawnLogicTest.run();
+        DeathDropLogicTest.run();
+        JobsWantedLogicTest.run();
+        BountyDropProbabilityTest.run();
     }
 
     private static void teleportSnapshotsDefensivelyCopyDestination() {
@@ -57,6 +65,9 @@ public final class PublicApiModelTest {
         require(PacificaAPI.taxi().getTeleportRequest(null).isEmpty(), "Taxi fallback must return an empty request");
         require(!PacificaAPI.combatTag().isInCombat(null), "Combat fallback must fail safely");
         require(PacificaAPI.tags().getTags().isEmpty(), "Tag fallback must return no tags");
+        require(!PacificaAPI.jobMenus().isAvailable(), "Job menu fallback must be unavailable");
+        PacificaAPI.jobMenus().openJobMenu(null);
+        PacificaAPI.jobMenus().openPlaceBountiesMenu(null);
     }
 
     private static void require(boolean condition, String message) {

@@ -28,7 +28,6 @@ public final class TeleportManager {
     private final Map<UUID, PendingTeleport> pendingTeleports = new HashMap<>();
     private final Map<UUID, BukkitTask> protectionTasks = new HashMap<>();
     private final Map<UUID, BukkitTask> externalProtectionTasks = new HashMap<>();
-    private final Set<UUID> safeSpawnDepartureProtection = new HashSet<>();
     private final Set<UUID> managedTeleports = new HashSet<>();
     private final Set<UUID> externalProtectionRequests = new HashSet<>();
 
@@ -49,7 +48,7 @@ public final class TeleportManager {
     public TaxiResult startApi(Player player, Location destination, TaxiReason reason) {
         TaxiReason effectiveReason = reason == null ? TaxiReason.OTHER : reason;
         return start(player, destination, false, contextFor(effectiveReason), java.util.Collections.emptyMap(), null,
-                effectiveReason, true, effectiveReason == TaxiReason.TAXI);
+                effectiveReason, true, effectiveReason == TaxiReason.TAXI || effectiveReason == TaxiReason.HOUSE);
     }
 
     public boolean isTeleporting(Player player) {
@@ -78,17 +77,23 @@ public final class TeleportManager {
             player.sendMessage(plugin.store().message(player, "teleport.destination-unavailable"));
             return TaxiResult.INVALID_DESTINATION;
         }
-        if (rejectIfAlreadyTeleporting && isTeleporting(player)) return TaxiResult.ALREADY_TELEPORTING;
+        if (rejectIfAlreadyTeleporting && isTeleporting(player)) {
+            player.sendMessage(plugin.store().message(player, "teleport.failed"));
+            return TaxiResult.ALREADY_TELEPORTING;
+        }
         Location target = destination.clone();
         TaxiReason effectiveReason = reason == null ? TaxiReason.OTHER : reason;
         TaxiStartEvent startEvent = new TaxiStartEvent(player, target, effectiveReason);
         Bukkit.getPluginManager().callEvent(startEvent);
-        if (startEvent.isCancelled()) return TaxiResult.TELEPORT_CANCELLED;
+        if (startEvent.isCancelled()) {
+            player.sendMessage(plugin.store().message(player, "teleport.failed"));
+            return TaxiResult.TELEPORT_CANCELLED;
+        }
         cancel(player, null);
         Location origin = player.getLocation().clone();
-        int total = context == TeleportContext.QUICK_PLAY
-            ? plugin.store().teleport().getInt("teleport.quick-play-countdown-seconds", 5)
-            : plugin.store().teleport().getInt("teleport.countdown-seconds", 10);
+        int total = countdownSeconds(effectiveReason,
+                plugin.store().teleport().getInt("teleport.quick-play-countdown-seconds", 5),
+                plugin.store().teleport().getInt("teleport.countdown-seconds", 10));
         int effectDuration = plugin.store().teleport().getInt("teleport.final-effects-duration-seconds", 2) * 20;
         String sound = plugin.store().teleport().getString("teleport.sound", "UI_BUTTON_CLICK");
         BukkitTask task = new BukkitRunnable() {
@@ -112,7 +117,6 @@ public final class TeleportManager {
                 if (remaining <= 0) {
                     tasks.remove(player.getUniqueId());
                     pendingTeleports.remove(player.getUniqueId());
-                    Location previousLocation = player.getLocation().clone();
                     managedTeleports.add(player.getUniqueId());
                     boolean teleported;
                     try {
@@ -121,16 +125,9 @@ public final class TeleportManager {
                         managedTeleports.remove(player.getUniqueId());
                     }
                     if (teleported) {
-                        boolean wasInsideSafeSpawn = plugin.safeSpawn().contains(previousLocation);
-                        boolean isInsideSafeSpawn = plugin.safeSpawn().contains(player.getLocation());
-                        safeSpawnDepartureProtection.remove(player.getUniqueId());
-                        boolean protection = context == TeleportContext.TAXI
-                            ? wasInsideSafeSpawn && !isInsideSafeSpawn
-                            : !isInsideSafeSpawn && context != TeleportContext.SPAWN;
-                        plugin.statuses().set(player, protection);
-                        scheduleProtectionExpiry(player, protection, context);
+                        updateProtectionForTransition(player, origin, player.getLocation());
                         Items.clickSound(player, plugin.store().teleport().getString("teleport.success-sound", "BLOCK_FIRE_EXTINGUISH"));
-                        player.sendMessage(successMessage(context, values));
+                        player.sendMessage(successMessage(effectiveReason, values));
                         Bukkit.getPluginManager().callEvent(new TaxiCompleteEvent(player, target, effectiveReason));
                         if (success != null) success.run();
                     } else {
@@ -150,15 +147,15 @@ public final class TeleportManager {
         return TaxiResult.SUCCESS;
     }
 
-    private void scheduleProtectionExpiry(Player player, boolean protection, TeleportContext context) {
+    private void scheduleProtectionExpiry(Player player) {
         BukkitTask previous = protectionTasks.remove(player.getUniqueId());
         if (previous != null) previous.cancel();
-        if (!protection || context == TeleportContext.SPAWN) return;
         long duration = Math.max(0L, plugin.store().spawnConfig().getLong("spawn-protection.duration-seconds", 7L)) * 20L;
         if (duration == 0L) {
             plugin.statuses().set(player, false);
             return;
         }
+        plugin.statuses().set(player, true);
         player.sendMessage(plugin.store().message(player, "spawn-protection.started", "%time%", String.valueOf(duration / 20L)));
         protectionTasks.put(player.getUniqueId(), new BukkitRunnable() {
             @Override public void run() {
@@ -169,51 +166,57 @@ public final class TeleportManager {
     }
 
     public void applySpawnProtection(Player player) {
-        if (plugin.safeSpawn().contains(player.getLocation())) {
-            safeSpawnDepartureProtection.add(player.getUniqueId());
-            cancelProtectionTask(player);
-            plugin.statuses().set(player, false);
-            return;
-        }
-        safeSpawnDepartureProtection.remove(player.getUniqueId());
-        plugin.statuses().set(player, true);
-        scheduleProtectionExpiry(player, true, null);
+        if (plugin.safeSpawn().contains(player.getLocation())) clearProtection(player);
     }
 
     public void handleSafeSpawnMovement(Player player, Location from, Location to) {
         boolean wasInside = plugin.safeSpawn().contains(from);
         boolean isInside = plugin.safeSpawn().contains(to);
         if (wasInside == isInside) return;
-        if (isInside) {
-            safeSpawnDepartureProtection.remove(player.getUniqueId());
-            cancelProtectionTask(player);
-            plugin.statuses().set(player, false);
-        } else if (safeSpawnDepartureProtection.remove(player.getUniqueId())) {
-            plugin.statuses().set(player, true);
-            scheduleProtectionExpiry(player, true, null);
+        if (SafeSpawnRegion.exited(wasInside, isInside)) scheduleProtectionExpiry(player);
+        else clearProtection(player);
+    }
+
+    private void updateProtectionForTransition(Player player, Location source, Location destination) {
+        boolean wasInside = source != null && plugin.safeSpawn().contains(source);
+        boolean isInside = destination != null && plugin.safeSpawn().contains(destination);
+        if (SafeSpawnRegion.exited(wasInside, isInside)) {
+            scheduleProtectionExpiry(player);
         } else {
-            plugin.statuses().set(player, false);
+            clearProtection(player);
         }
     }
 
+    static int countdownSeconds(TaxiReason reason, int quickPlaySeconds, int normalSeconds) {
+        return reason == TaxiReason.QUICK_PLAY ? quickPlaySeconds : normalSeconds;
+    }
+
+    private void clearProtection(Player player) {
+        cancelProtectionTask(player);
+        plugin.statuses().set(player, false);
+    }
+
+    /** Clears a player's active spawn-protection session and transition state. */
+    public void clearSpawnProtection(Player player) {
+        UUID playerId = player.getUniqueId();
+        cancelProtectionTask(player);
+        BukkitTask externalTask = externalProtectionTasks.remove(playerId);
+        if (externalTask != null) externalTask.cancel();
+        externalProtectionRequests.remove(playerId);
+        plugin.statuses().clear(player);
+    }
+
     public void handleExternalTeleport(Player player, Location destination) {
-        boolean requestedProtection = externalProtectionRequests.remove(player.getUniqueId());
-        BukkitTask requestTask = externalProtectionTasks.remove(player.getUniqueId());
+        handleExternalTeleport(player, player.getLocation(), destination);
+    }
+
+    /** Applies Safe Spawn transition rules to a successful external teleport. */
+    public void handleExternalTeleport(Player player, Location source, Location destination) {
+        UUID playerId = player.getUniqueId();
+        externalProtectionRequests.remove(playerId);
+        BukkitTask requestTask = externalProtectionTasks.remove(playerId);
         if (requestTask != null) requestTask.cancel();
-        if (plugin.safeSpawn().contains(destination)) {
-            safeSpawnDepartureProtection.remove(player.getUniqueId());
-            cancelProtectionTask(player);
-            plugin.statuses().set(player, false);
-            return;
-        }
-        if (!requestedProtection) {
-            cancelProtectionTask(player);
-            plugin.statuses().set(player, false);
-            return;
-        }
-        safeSpawnDepartureProtection.remove(player.getUniqueId());
-        plugin.statuses().set(player, true);
-        scheduleProtectionExpiry(player, true, null);
+        updateProtectionForTransition(player, source, destination);
     }
 
     public void requestExternalProtection(Player player) {
@@ -233,13 +236,14 @@ public final class TeleportManager {
         return managedTeleports.contains(player.getUniqueId());
     }
 
-    private String successMessage(TeleportContext context, Map<String, String> values) {
-        String path = switch (context == null ? TeleportContext.SPAWN : context) {
+    private String successMessage(TaxiReason reason, Map<String, String> values) {
+        String path = switch (reason == null ? TaxiReason.OTHER : reason) {
             case SPAWN -> "teleport.spawn-success";
-            case QUICK_PLAY, RANDOM_WARP, NAMED_WARP, TAXI -> "teleport.warp-success";
-            case PLAYER_TPA -> "teleport.player-success";
+            case QUICK_PLAY, RANDOM_WARP, WARP -> "teleport.warp-success";
+            case TPA -> "teleport.player-success";
+            case HOUSE, TAXI, OTHER -> "teleport.success";
         };
-        String message = plugin.store().message(context == null ? "teleport.success" : path);
+        String message = plugin.store().message(path);
         for (Map.Entry<String, String> entry : values.entrySet()) message = message.replace(entry.getKey(), entry.getValue());
         return message;
     }
@@ -276,7 +280,6 @@ public final class TeleportManager {
         tasks.clear();
         protectionTasks.clear();
         externalProtectionTasks.clear();
-        safeSpawnDepartureProtection.clear();
         managedTeleports.clear();
         externalProtectionRequests.clear();
     }

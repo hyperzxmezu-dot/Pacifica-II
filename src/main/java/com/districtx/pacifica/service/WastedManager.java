@@ -1,5 +1,6 @@
 package com.districtx.pacifica.service;
 
+import com.cryptomorin.xseries.XSound;
 import com.districtx.pacifica.PacificaPlugin;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -21,26 +22,45 @@ public final class WastedManager {
     public WastedManager(PacificaPlugin plugin) { this.plugin = plugin; }
 
     public void start(Player player, String type, Player killer) {
-        cancel(player);
+        UUID playerId = player.getUniqueId();
+        if (states.containsKey(playerId)) return;
         Location deathLocation = player.getLocation().clone();
-        WastedState state = new WastedState(deathLocation, killer == null ? null : killer.getUniqueId(), null);
-        states.put(player.getUniqueId(), state);
-        player.setGameMode(GameMode.SPECTATOR);
+        WastedState state = new WastedState(deathLocation, killer == null ? null : killer.getUniqueId(), player.getWalkSpeed(), player.getFlySpeed(), player.getGameMode(), player.getAllowFlight(), player.isFlying());
+        states.put(playerId, state);
         String message = randomMessage(type);
-        int duration = Math.max(1, plugin.store().wasted().getInt("wasted.duration-seconds", 5));
-        state.task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            if (!player.isOnline()) { cancel(player); return; }
-            if (state.elapsed >= duration * 100) { finish(player); return; }
-            maintain(player, state);
-            if (state.elapsed % 100 == 0) player.sendTitle(com.districtx.pacifica.util.Items.color("&c&lWasted"), com.districtx.pacifica.util.Items.color("&7" + message), 0, 100, 0);
-            state.elapsed++;
-        }, 0L, 1L);
+        long durationTicks = Math.max(1, plugin.store().wasted().getInt("wasted.duration-seconds", 8)) * 20L;
+        player.sendTitle(com.districtx.pacifica.util.Items.color("&c&lWASTED"), com.districtx.pacifica.util.Items.color("&7" + message), 0, (int) durationTicks, 0);
+        XSound.matchXSound("ENTITY_WITHER_SPAWN").ifPresent(sound -> sound.play(player, 1.0f, 1.0f));
+        player.setWalkSpeed(0.0f);
+        player.setFlySpeed(0.0f);
+        player.setGameMode(GameMode.SPECTATOR);
+        state.respawnTask = plugin.getServer().getScheduler().runTaskLater(plugin, () -> finish(player), durationTicks);
         plugin.getServer().getScheduler().runTask(plugin, player.spigot()::respawn);
     }
 
     public void track(Player player) {
         WastedState state = states.get(player.getUniqueId());
-        if (state != null) maintain(player, state);
+        if (state == null || !player.isOnline() || player.isDead()) return;
+        if (player.getGameMode() != GameMode.SPECTATOR) player.setGameMode(GameMode.SPECTATOR);
+        Player killer = state.killer == null ? null : plugin.getServer().getPlayer(state.killer);
+        boolean validKiller = killer != null && killer.isOnline() && killer.isValid() && !killer.isDead() && killer.getWorld().equals(player.getWorld());
+        if (validKiller) {
+            if (player.getSpectatorTarget() != killer) player.setSpectatorTarget(killer);
+        } else if (player.getSpectatorTarget() != null) {
+            player.setSpectatorTarget(null);
+        }
+    }
+
+    /** Clears spectator cameras tracking a player who is no longer a valid target. */
+    public void targetUnavailable(Player target) {
+        UUID targetId = target.getUniqueId();
+        for (Map.Entry<UUID, WastedState> entry : states.entrySet()) {
+            if (!targetId.equals(entry.getValue().killer)) continue;
+            Player spectator = plugin.getServer().getPlayer(entry.getKey());
+            if (spectator != null && spectator.isOnline() && spectator.getSpectatorTarget() == target) {
+                spectator.setSpectatorTarget(null);
+            }
+        }
     }
 
     public boolean isWasted(Player player) { return states.containsKey(player.getUniqueId()); }
@@ -52,38 +72,19 @@ public final class WastedManager {
 
     private void finish(Player player) {
         WastedState state = states.remove(player.getUniqueId());
-        if (state == null || !player.isOnline()) return;
-        if (state.task != null) state.task.cancel();
-        player.setSpectatorTarget(null);
+        if (state == null) return;
+        cancelTasks(state);
+        if (!player.isOnline()) return;
+        restoreTemporaryState(player, state);
         Location spawn = plugin.store().spawn();
-        player.setGameMode(GameMode.ADVENTURE);
         teleportInternally(player, spawn == null ? player.getWorld().getSpawnLocation() : spawn);
-        plugin.teleports().applySpawnProtection(player);
         plugin.combatTags().clear(player);
-    }
-
-    private void maintain(Player player, WastedState state) {
-        if (player.getGameMode() != GameMode.SPECTATOR) player.setGameMode(GameMode.SPECTATOR);
-        if (!samePosition(player.getLocation(), state.location)) teleportInternally(player, state.location);
-        Player killer = state.killer == null ? null : plugin.getServer().getPlayer(state.killer);
-        double range = Math.max(0.0, plugin.store().wasted().getDouble("wasted.killer-tracking-range", 32.0));
-        boolean validKiller = killer != null && killer.isOnline() && killer.getWorld().equals(state.location.getWorld()) && killer.getLocation().distanceSquared(state.location) <= range * range;
-        if (validKiller) {
-            if (player.getSpectatorTarget() != killer) player.setSpectatorTarget(killer);
-        } else if (player.getSpectatorTarget() != null) player.setSpectatorTarget(null);
     }
 
     private void teleportInternally(Player player, Location location) {
         internalTeleports.add(player.getUniqueId());
         try { player.teleport(location); }
         finally { internalTeleports.remove(player.getUniqueId()); }
-    }
-
-    private boolean samePosition(Location first, Location second) {
-        return first.getWorld() == second.getWorld()
-            && first.getX() == second.getX()
-            && first.getY() == second.getY()
-            && first.getZ() == second.getZ();
     }
 
     public boolean isInternalTeleport(Player player) { return internalTeleports.contains(player.getUniqueId()); }
@@ -98,26 +99,51 @@ public final class WastedManager {
 
     public void cancel(Player player) {
         WastedState state = states.remove(player.getUniqueId());
-        if (state != null && state.task != null) state.task.cancel();
+        if (state == null) return;
+        cancelTasks(state);
+        if (player.isOnline()) restoreTemporaryState(player, state);
     }
 
     public void clear() {
-        states.values().forEach(state -> {
-            if (state.task != null) state.task.cancel();
+        states.forEach((playerId, state) -> {
+            cancelTasks(state);
+            Player player = plugin.getServer().getPlayer(playerId);
+            if (player != null && player.isOnline()) restoreTemporaryState(player, state);
         });
         states.clear();
         internalTeleports.clear();
     }
 
+    private void cancelTasks(WastedState state) {
+        if (state.respawnTask != null) state.respawnTask.cancel();
+    }
+
+    private void restoreTemporaryState(Player player, WastedState state) {
+        player.setSpectatorTarget(null);
+        player.setGameMode(state.gameMode);
+        player.setAllowFlight(state.allowFlight);
+        if (state.allowFlight) player.setFlying(state.flying);
+        player.setWalkSpeed(state.walkSpeed);
+        player.setFlySpeed(state.flySpeed);
+    }
+
     private static final class WastedState {
         private final Location location;
         private final UUID killer;
-        private BukkitTask task;
-        private int elapsed;
-        private WastedState(Location location, UUID killer, BukkitTask task) {
+        private final float walkSpeed;
+        private final float flySpeed;
+        private final GameMode gameMode;
+        private final boolean allowFlight;
+        private final boolean flying;
+        private BukkitTask respawnTask;
+        private WastedState(Location location, UUID killer, float walkSpeed, float flySpeed, GameMode gameMode, boolean allowFlight, boolean flying) {
             this.location = location;
             this.killer = killer;
-            this.task = task;
+            this.walkSpeed = walkSpeed;
+            this.flySpeed = flySpeed;
+            this.gameMode = gameMode;
+            this.allowFlight = allowFlight;
+            this.flying = flying;
         }
     }
 }

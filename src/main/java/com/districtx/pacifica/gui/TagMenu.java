@@ -62,7 +62,10 @@ public final class TagMenu extends BaseMenu {
         lore.add("&7Rarity: " + rarity);
         lore.add("&7Source: " + source);
         lore.add("&7");
-        if (equipped) lore.add("&a✔ Equipped");
+        if (equipped) {
+            lore.add("&a✔ Equipped");
+            lore.add("&e&lRight-Click to unequip.");
+        }
         else if (owned) {
             lore.add("&aOwned");
             lore.add("&e&lRight-Click to equip.");
@@ -114,7 +117,17 @@ public final class TagMenu extends BaseMenu {
             return;
         }
         if (event.isRightClick()) {
-            plugin.tags().equipTag(player.getUniqueId(), tag.getId());
+            Tag equipped = plugin.tags().getEquippedTag(player.getUniqueId());
+            if (equipped != null && equipped.getId().equals(tag.getId())) {
+                plugin.tags().unequipTag(player.getUniqueId());
+                if (plugin.tags().getEquippedTag(player.getUniqueId()) == null) {
+                    player.sendMessage(plugin.store().message(player, "tag.unequipped"));
+                }
+            } else {
+                if (plugin.tags().equipTag(player.getUniqueId(), tag.getId())) {
+                    player.sendMessage(plugin.store().message(player, "tag.equipped", "%tag%", tag.getDisplayName()));
+                }
+            }
             open(new TagMenu(plugin, player, page));
         }
     }

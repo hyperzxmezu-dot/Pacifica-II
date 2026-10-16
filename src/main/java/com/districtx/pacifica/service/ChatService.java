@@ -23,7 +23,8 @@ public final class ChatService implements ChatManager {
     @Override public String formatMessage(Player player, String message) {
         String format = getFormat(player);
         format = replaceOptional(format, "%luckperms_prefix%", getPrefix(player));
-        format = replaceOptional(format, "%tag%", getTag(player));
+        boolean tagsEnabled = plugin.store().chat().getBoolean("chat.integrations.tags", true);
+        format = replaceOptional(format, "%tag%", plugin.identity().display(player, tagsEnabled));
         format = format
                 .replace("%player_name%", getPlayerName(player))
                 .replace("%player_displayname%", getNickname(player))
@@ -43,14 +44,12 @@ public final class ChatService implements ChatManager {
         return plugin.tags().display(player.getUniqueId());
     }
 
-    @Override public String getPlayerName(Player player) { return player.getName(); }
+    @Override public String getPlayerName(Player player) { return applyNameStyle(player, player.getName()); }
 
     @Override public String getNickname(Player player) {
         String display = player.getDisplayName();
         display = display == null || display.trim().isEmpty() ? player.getName() : display;
-        String prefix = getPrefix(player);
-        if (prefix.trim().isEmpty()) return display;
-        return prefixStyle(prefix) + ChatColor.stripColor(Items.color(display));
+        return applyNameStyle(player, ChatColor.stripColor(Items.color(display)));
     }
 
     @Override public String getSuffix(Player player) { return metadata(player, "getSuffix"); }
@@ -125,23 +124,8 @@ public final class ChatService implements ChatManager {
         } catch (Throwable ignored) { }
     }
 
-    private String prefixStyle(String prefix) {
-        StringBuilder style = new StringBuilder();
-        for (int i = 0; i < prefix.length() - 1; i++) {
-            char marker = prefix.charAt(i);
-            if (marker != '&' && marker != ChatColor.COLOR_CHAR) continue;
-            char code = Character.toLowerCase(prefix.charAt(++i));
-            if (isLegacyStyle(code)) {
-                style.append('&').append(code);
-            }
-        }
-        return style.toString();
-    }
-
-    private boolean isLegacyStyle(char code) {
-        return code >= '0' && code <= '9'
-                || code >= 'a' && code <= 'f'
-                || code >= 'k' && code <= 'o'
-                || code == 'r';
+    private String applyNameStyle(Player player, String name) {
+        String style = plugin.tabs() == null ? "" : plugin.tabs().playerNameStyle(player);
+        return style.isEmpty() ? name : style + name + "&r";
     }
 }

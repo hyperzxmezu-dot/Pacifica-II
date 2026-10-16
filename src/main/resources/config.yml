@@ -5,15 +5,6 @@ plugin:
 integrations:
   placeholderapi: true
   luckperms: true
-separate-inventory:
-  enabled: true
-  modes:
-    survival: true
-    creative: true
-    adventure: true
-    spectator: true
-  storage:
-    type: yaml
 tab:
   enabled: true
   update-period-ticks: 20
@@ -28,10 +19,10 @@ tab:
   footer:
     - ''
     - '&8&lDistrict&4&lX &7➟ &6&lv1.0'
-    - '&r⇒ &2&l&oC&d&l&oh&6&l&oi&3&l&ol&b&l&ol&5&l&oi&e&l&on &f&l&ol&9&l&oi&6&l&ok &2&l&oe &3&l&oa &d&l&oi&b&l&ol&f&l&ol&9&l&oa&e&l&oi&b&l&on &r⇐'
+    - '&r⇒ &2&l&oC&d&l&oh&6&l&oi&3&l&ol&b&l&ol&5&l&oi&e&l&on &f&l&ol&9&l&oi&6&l&ok &2&l&oe &3&l&oa &d&l&oi&b&l&ol&f&l&ol&9&l&oa&e&l&oi&b&l&on &r&f⇐'
     - ''
     - '<#FFFFFF>&m                                                </#FFFF00>'
-  player-name-format: '%prefix%%tag%%name%%suffix%'
+  player-name-format: '%luckperms_prefix%%tag%%name%%suffix%'
   fallback-prefix: ''
   fallback-suffix: ''
   luckperms:
@@ -66,3 +57,162 @@ protection:
     crackshot: []
     weaponmechanics: []
     minecraft: []
+jobs:
+  default: CRIMINAL
+  death-cooldown:
+    enabled: true
+    duration: 3h
+    perks:
+      tier-1:
+        permission: pacifica.jobmode.delay.1
+        duration: 2h
+      tier-2:
+        permission: pacifica.jobmode.delay.2
+        duration: 1h
+      tier-3:
+        permission: pacifica.jobmode.delay.3
+        duration: 30m
+  unlocks:
+    cop:
+      level: 25
+    hitman:
+      level: 40
+    medic:
+      level: 0
+  npcs:
+    cop: cop_npc
+    hitman: hitman_npc
+    medic: medic_npc
+    criminal-quit: criminal_npc
+    warden: warden_npc
+  messages:
+    selected: '&aYou are now a %job%.'
+    already-active: '&eYou already have that job.'
+    level-required: '&cYou have not reached the level required for that job.'
+    cooldown: '&cYou cannot select that job yet.'
+    no-permission: '&cYou do not have permission for that job.'
+    cancelled: '&cThat job change was cancelled.'
+    failed: '&cYou could not select that job.'
+    quit: '&aYou are now a CRIMINAL.'
+    medic-coming-soon: '&eThe Medic job is coming soon.'
+  cop:
+    arrest:
+      taser:
+        material: BLAZE_ROD
+        name: '&bTaser'
+      night-stick:
+        material: STICK
+        hits: 3
+        window: 8s
+    arrest-rewards:
+      1: 1000
+      2: 2500
+      3: 5000
+      4: 10000
+      5: 20000
+    bribe:
+      enabled: true
+      minimum: 5000
+      expiration: 2m
+  cop:
+    arrest:
+      taser:
+        material: BLAZE_ROD
+        name: '&bTaser'
+      night-stick:
+        material: STICK
+        hits: 3
+        window: 8s
+    arrest-rewards:
+      1: 1000
+      2: 2500
+      3: 5000
+      4: 10000
+      5: 20000
+    bribe:
+      enabled: true
+      minimum: 5000
+      expiration: 2m
+wanted:
+  enabled: true
+  max-stars: 5
+  placeholder:
+    enabled: true
+  kill-thresholds:
+    1: 1
+    2: 2
+    4: 3
+    5: 4
+    6: 5
+  cop-kill:
+    stars: 2
+  decay:
+    enabled: true
+    interval: 60m
+    amount: 1
+  warden:
+    enabled: true
+    price-per-star: 10000
+    messages:
+      not-wanted: '&eYou have no wanted stars.'
+      insufficient-funds: '&cYou cannot afford to clear your wanted stars.'
+      remove-one-success: '&aYou paid $%cost% to remove one wanted level. %level% remaining.'
+      success: '&aYou paid $%cost% to clear your wanted stars.'
+  protected-npcs: []
+  npc-kill-stars: 1
+jail:
+  enabled: true
+  durations:
+    1: 25m
+    2: 30m
+    3: 45m
+    4: 60m
+    5: 80m
+  restriction:
+    radius: 15
+  allowed-commands:
+    - bribe
+bounty:
+  max-reward: 1000000
+  player-placement:
+    minimum: 1
+    maximum: 1000000
+    anonymous-default: true
+  random:
+    enabled: true
+    interval: 30m
+    minimum: 10000
+    maximum: 1000000
+    exclude-operators: true
+    excluded-permission: pacifica.bounty.random.bypass
+    excluded-players: []
+  broadcast:
+    enabled: true
+  head-drop:
+    enabled: true
+    chance-percent: 0.10
+    broadcast: false
+medic:
+  range: 4
+  cooldown: 30s
+  allow-self: false
+  syringe:
+    material: POTION
+    name: '&dMedic Syringe'
+  kit-effects:
+    tank: []
+    flash: []
+    pillow: []
+    breath: []
+  debuffs:
+    duration: 10s
+    amplifier: 0
+    effects:
+      - SLOWNESS
+      - WEAKNESS
+      - HUNGER
+  rewards:
+    tank: 1000
+    flash: 1000
+    pillow: 1000
+    breath: 1000

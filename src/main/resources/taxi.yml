@@ -1,5 +1,5 @@
 taxi-gui:
-  title: '&7&lTaxi'
+  title: '&2&lGrab Service'
   buttons:
     spawn:
       slot: 13
@@ -26,6 +26,8 @@ taxi-gui:
       material: IRON_DOOR
       name: '&1House'
       lore: '&7Travel to one of your houses!'
+    house-selection:
+      title: '&2&lGrab Service: &9&lHouses'
 tpa: {}
 teleport:
   cancel-on-move: true

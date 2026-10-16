@@ -22,7 +22,7 @@ trashcan-gui:
     sell-entire-inventory:
       slot: 52
       material: DIAMOND
-      name: '&6&lSell Entire Inventory'
+      name: '&a&lSell Entire Inventory'
       lore: '&7Total Value: &a&l$%value%'
     confirm:
       slot: 53

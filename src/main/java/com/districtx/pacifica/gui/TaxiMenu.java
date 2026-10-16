@@ -22,7 +22,7 @@ public final class TaxiMenu extends BaseMenu {
     private final Map<Integer, TaxiGUIProvider> providerSlots = new HashMap<>();
 
     public TaxiMenu(PacificaPlugin plugin, Player player) {
-        super(plugin, player, string(plugin, "title", "&7&lTaxi"), 0);
+        super(plugin, player, string(plugin, "title", "&2&lGrab Service"), 0);
         ConfigurationSection section = plugin.store().taxi().getConfigurationSection("taxi-gui");
         mainButton(integer(section, "buttons.spawn.slot", 13), string(section, "buttons.spawn.material", "BED"), string(section, "buttons.spawn.name", "&a&lSpawn"), string(section, "buttons.spawn.lore", "&7Teleport to spawn!"));
         mainButton(integer(section, "buttons.quick-play.slot", 11), string(section, "buttons.quick-play.material", "EMERALD"), string(section, "buttons.quick-play.name", "&a&lQuick Play"), string(section, "buttons.quick-play.lore", "&7Teleport to a random location!"));
@@ -61,8 +61,9 @@ public final class TaxiMenu extends BaseMenu {
             if (plugin.wasted().isWasted(player)) player.sendMessage(plugin.store().message(player, "wasted.command-blocked"));
             else if (plugin.combatTags().isTagged(player)) player.sendMessage(plugin.store().message(player, "combattag.command-blocked"));
             else {
-                plugin.teleports().requestExternalProtection(player);
-                player.performCommand("myhouses");
+                TaxiHouseMenu houseMenu = new TaxiHouseMenu(plugin, player, this);
+                if (houseMenu.isHousingAvailable()) open(houseMenu);
+                else player.sendMessage(ChatColor.RED + "Pacifica-Housing is unavailable.");
             }
         }
     }

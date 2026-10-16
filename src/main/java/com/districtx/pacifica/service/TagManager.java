@@ -25,6 +25,7 @@ public final class TagManager {
     private final Map<UUID, PlayerTags> players = new LinkedHashMap<>();
     private final TagNametagProvider nametagProvider;
     private Object placeholderExpansion;
+    private Object identityExpansion;
 
     public TagManager(PacificaPlugin plugin) {
         this.plugin = plugin;
@@ -33,17 +34,30 @@ public final class TagManager {
     }
 
     public void start() {
-        if (!enabled()) return;
-        if (plugin.store().tag().getBoolean("tag-system.placeholder.enabled", true)
-                && Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+        if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
+            if (enabled() && plugin.store().tag().getBoolean("tag-system.placeholder.enabled", true)) {
+                try {
+                    Class<?> expansionClass = Class.forName("com.districtx.pacifica.service.TagPlaceholderExpansion");
+                    placeholderExpansion = expansionClass.getConstructor(PacificaPlugin.class).newInstance(plugin);
+                    expansionClass.getMethod("register").invoke(placeholderExpansion);
+                } catch (ReflectiveOperationException | LinkageError ignored) {
+                    placeholderExpansion = null;
+                }
+            }
             try {
-                Class<?> expansionClass = Class.forName("com.districtx.pacifica.service.TagPlaceholderExpansion");
-                placeholderExpansion = expansionClass.getConstructor(PacificaPlugin.class).newInstance(plugin);
-                expansionClass.getMethod("register").invoke(placeholderExpansion);
-            } catch (ReflectiveOperationException ignored) {
-                placeholderExpansion = null;
+                Class<?> expansionClass = Class.forName("com.districtx.pacifica.service.PacificaIdentityPlaceholderExpansion");
+                Object expansion = expansionClass.getConstructor(PacificaPlugin.class).newInstance(plugin);
+                if (Boolean.TRUE.equals(expansionClass.getMethod("register").invoke(expansion))) {
+                    identityExpansion = expansion;
+                } else {
+                    plugin.getLogger().warning("Could not register Pacifica-II placeholders with identifier 'pacificaii'.");
+                }
+            } catch (ReflectiveOperationException | LinkageError exception) {
+                identityExpansion = null;
+                plugin.getLogger().warning("Could not register Pacifica-II PlaceholderAPI expansion: " + exception.getMessage());
             }
         }
+        if (!enabled()) return;
         refreshAll();
     }
 
@@ -53,6 +67,12 @@ public final class TagManager {
                 placeholderExpansion.getClass().getMethod("unregister").invoke(placeholderExpansion);
             } catch (ReflectiveOperationException ignored) { }
             placeholderExpansion = null;
+        }
+        if (identityExpansion != null) {
+            try {
+                identityExpansion.getClass().getMethod("unregister").invoke(identityExpansion);
+            } catch (ReflectiveOperationException ignored) { }
+            identityExpansion = null;
         }
     }
 
@@ -139,7 +159,17 @@ public final class TagManager {
     public boolean removeTag(UUID uuid, String id) {
         PlayerTags state = players.get(uuid);
         String normalized = normalize(id);
-        if (state == null || !state.owned.remove(normalized)) return false;
+        if (state == null || !state.owned.contains(normalized)) return false;
+        if (normalized.equals(state.equipped)) {
+            TagDefinition equipped = definitions.get(normalized);
+            Player player = Bukkit.getPlayer(uuid);
+            if (player != null && equipped != null) {
+                TagUnequipEvent event = new TagUnequipEvent(player, snapshot(equipped));
+                Bukkit.getPluginManager().callEvent(event);
+                if (event.isCancelled()) return false;
+            }
+        }
+        if (!state.owned.remove(normalized)) return false;
         if (normalized.equals(state.equipped)) state.equipped = null;
         save();
         refresh(uuid);
@@ -208,6 +238,16 @@ public final class TagManager {
     public String display(UUID uuid) {
         Tag tag = getEquippedTag(uuid);
         return tag == null ? "" : ((TagDefinition) tag).displayText();
+    }
+
+    /** Refreshes the player's above-head nametag using their current Tag or level identity. */
+    public void refreshNametag(Player player) {
+        nametagProvider.update(player);
+    }
+
+    /** Removes the player's above-head nametag entry when they leave the server. */
+    public void removeNametag(Player player) {
+        nametagProvider.remove(player);
     }
 
     public void refreshAll() {

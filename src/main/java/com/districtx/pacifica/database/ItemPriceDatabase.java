@@ -20,7 +20,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 public final class ItemPriceDatabase extends AbstractSqliteDatabase {
     public ItemPriceDatabase(PacificaPlugin plugin) {
-        super(new File(plugin.getDataFolder(), "itemprices.db"));
+        super(plugin.paths().getItemPriceDatabase().toFile());
     }
 
     @Override

@@ -9,6 +9,8 @@ import com.districtx.pacifica.api.tag.TagGUIProvider;
 import com.districtx.pacifica.api.taxi.TaxiAPI;
 import com.districtx.pacifica.api.taxi.TaxiGUI;
 import com.districtx.pacifica.api.taxi.TaxiGUIProvider;
+import com.districtx.pacifica.api.jobs.JobMenuAPI;
+import com.districtx.pacifica.api.supplydrops.SupplyDropsAPI;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredServiceProvider;
@@ -22,7 +24,7 @@ import java.util.Collection;
  */
 public final class PacificaAPI {
     /** The semantic version of the public Pacifica-II API. */
-    public static final String API_VERSION = "1.0.0";
+    public static final String API_VERSION = "1.1.0";
 
     private static final CombatTagAPI UNAVAILABLE_COMBAT = new CombatTagAPI() {
         @Override public boolean isAvailable() { return false; }
@@ -67,6 +69,26 @@ public final class PacificaAPI {
         @Override public Collection<TaxiGUIProvider> getGUIProviders() { return java.util.List.of(); }
     };
 
+    private static final JobMenuAPI UNAVAILABLE_JOB_MENUS = new JobMenuAPI() {
+        @Override public boolean isAvailable() { return false; }
+        @Override public void openJobMenu(org.bukkit.entity.Player player) { }
+        @Override public void openPoliceMenu(org.bukkit.entity.Player player) { }
+        @Override public void openMedicMenu(org.bukkit.entity.Player player) { }
+        @Override public void openWardenMenu(org.bukkit.entity.Player player) { }
+        @Override public void openHitmanMenu(org.bukkit.entity.Player player) { }
+        @Override public void openCriminalMenu(org.bukkit.entity.Player player) { }
+        @Override public void openPlaceBountiesMenu(org.bukkit.entity.Player player) { }
+        @Override public void openChoosePlayerMenu(org.bukkit.entity.Player player) { }
+    };
+
+    private static final SupplyDropsAPI UNAVAILABLE_SUPPLY_DROPS = new SupplyDropsAPI() {
+        @Override public boolean isAvailable() { return false; }
+        @Override public int getAmount(java.util.UUID playerId, com.districtx.pacifica.api.supplydrops.SupplyDropRarity rarity) { return 0; }
+        @Override public boolean grantAmount(java.util.UUID playerId, com.districtx.pacifica.api.supplydrops.SupplyDropRarity rarity, int amount) { return false; }
+        @Override public boolean removeAmount(java.util.UUID playerId, com.districtx.pacifica.api.supplydrops.SupplyDropRarity rarity, int amount) { return false; }
+        @Override public boolean summon(org.bukkit.entity.Player player, com.districtx.pacifica.api.supplydrops.SupplyDropRarity rarity) { return false; }
+    };
+
     private PacificaAPI() { }
 
     /**
@@ -75,7 +97,8 @@ public final class PacificaAPI {
      * @return {@code true} when Pacifica-II's public services are registered
      */
     public static boolean isAvailable() {
-        return taxi() != UNAVAILABLE_TAXI || combatTag() != UNAVAILABLE_COMBAT || tags() != UNAVAILABLE_TAGS;
+        return taxi() != UNAVAILABLE_TAXI || combatTag() != UNAVAILABLE_COMBAT || tags() != UNAVAILABLE_TAGS
+                || jobMenus() != UNAVAILABLE_JOB_MENUS || supplyDrops() != UNAVAILABLE_SUPPLY_DROPS;
     }
 
     /**
@@ -109,6 +132,23 @@ public final class PacificaAPI {
     public static TagAPI tags() {
         TagAPI service = loadService(TagAPI.class);
         return service == null ? UNAVAILABLE_TAGS : service;
+    }
+
+    /**
+     * Returns the job-menu API, or a safe unavailable implementation if
+     * Pacifica-II is absent or has not registered its service.
+     *
+     * @return the job-menu API; never {@code null}
+     */
+    public static JobMenuAPI jobMenus() {
+        JobMenuAPI service = loadService(JobMenuAPI.class);
+        return service == null ? UNAVAILABLE_JOB_MENUS : service;
+    }
+
+    /** Returns the SupplyDrops API, or a safe unavailable implementation. */
+    public static SupplyDropsAPI supplyDrops() {
+        SupplyDropsAPI service = loadService(SupplyDropsAPI.class);
+        return service == null ? UNAVAILABLE_SUPPLY_DROPS : service;
     }
 
     private static <T> T loadService(Class<T> serviceType) {

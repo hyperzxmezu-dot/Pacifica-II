@@ -7,7 +7,7 @@ combattag:
     enabled: true
     victim-loss-percent: 20.0
 wasted:
-  duration-seconds: 5
+  duration-seconds: 8
   killer-tracking-range: 32
 messages:
   pvp:

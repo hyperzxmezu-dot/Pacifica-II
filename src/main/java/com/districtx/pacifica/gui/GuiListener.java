@@ -5,6 +5,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 
 public final class GuiListener implements Listener {
     private final GuiManager manager;
@@ -12,4 +13,5 @@ public final class GuiListener implements Listener {
     @EventHandler public void click(InventoryClickEvent event) { manager.click(event); }
     @EventHandler public void close(InventoryCloseEvent event) { manager.close(event); }
     @EventHandler public void drag(InventoryDragEvent event) { manager.drag(event); }
+    @EventHandler public void join(PlayerJoinEvent event) { manager.joined(event.getPlayer()); }
 }

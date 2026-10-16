@@ -125,6 +125,23 @@ public interface TaxiAPI {
     boolean unregisterGUIProvider(String id);
 
     /**
+     * Returns a snapshot of the configured Taxi warp identifiers.
+     * Must be called on the server's main thread.
+     *
+     * @return configured warp identifiers
+     */
+    default Collection<String> getWarpNames() { return java.util.List.of(); }
+
+    /**
+     * Returns a copy of a configured Taxi warp's location.
+     * Must be called on the server's main thread.
+     *
+     * @param name warp identifier
+     * @return configured warp location, if it exists and its world is available
+     */
+    default Optional<Location> getWarpLocation(String name) { return Optional.empty(); }
+
+    /**
      * Returns an immutable snapshot of registered Taxi menu providers.
      * Must be called on the server's main thread.
      *

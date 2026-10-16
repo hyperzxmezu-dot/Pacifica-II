@@ -64,8 +64,6 @@ final class PacificaTaxiService implements TaxiAPI {
     private TaxiResult request(Player player, Location destination, TaxiReason reason) {
         if (!isAvailable()) return TaxiResult.DISABLED;
         if (player == null || !player.isOnline()) return TaxiResult.PLAYER_NOT_FOUND;
-        if (destination == null || destination.getWorld() == null) return TaxiResult.INVALID_DESTINATION;
-        if (plugin.teleports().isTeleporting(player)) return TaxiResult.ALREADY_TELEPORTING;
         return plugin.teleports().startApi(player, destination, reason);
     }
 
@@ -92,6 +90,19 @@ final class PacificaTaxiService implements TaxiAPI {
 
     @Override public boolean unregisterGUIProvider(String id) {
         return isAvailable() && id != null && guiProviders.remove(id.trim().toLowerCase(Locale.ROOT)) != null;
+    }
+
+    @Override public Collection<String> getWarpNames() {
+        return isAvailable() ? List.copyOf(plugin.warps().names()) : List.of();
+    }
+
+    @Override public Optional<Location> getWarpLocation(String name) {
+        if (!isAvailable() || name == null) return Optional.empty();
+        String warpName = plugin.warps().names().stream()
+                .filter(candidate -> candidate.equalsIgnoreCase(name.trim())).findFirst().orElse(null);
+        if (warpName == null) return Optional.empty();
+        Location location = plugin.warps().get(warpName);
+        return location == null || location.getWorld() == null ? Optional.empty() : Optional.of(location.clone());
     }
 
     @Override public Collection<TaxiGUIProvider> getGUIProviders() { return List.copyOf(guiProviders.values()); }

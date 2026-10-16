@@ -2,11 +2,6 @@ package com.districtx.pacifica.database;
 
 import com.districtx.pacifica.ConfigStore;
 import com.districtx.pacifica.PacificaPlugin;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -19,67 +14,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import org.bukkit.GameMode;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.inventory.ItemStack;
 
 public final class PlayerDatabase extends AbstractSqliteDatabase {
     public PlayerDatabase(PacificaPlugin plugin) {
-        super(new java.io.File(plugin.getDataFolder(), "player.db"));
+        super(plugin.paths().getPlayerDatabase().toFile());
     }
 
     @Override
     public synchronized void createTables() {
         try (Statement statement = getConnection().createStatement()) {
             statement.executeUpdate("CREATE TABLE IF NOT EXISTS players (uuid TEXT PRIMARY KEY, last_name TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)");
-            statement.executeUpdate("CREATE TABLE IF NOT EXISTS player_inventories (uuid TEXT NOT NULL, gamemode TEXT NOT NULL, inventory_data BLOB NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(uuid, gamemode), FOREIGN KEY(uuid) REFERENCES players(uuid) ON DELETE CASCADE)");
+            statement.executeUpdate("DROP TABLE IF EXISTS player_inventories");
             statement.executeUpdate("CREATE TABLE IF NOT EXISTS player_tags (uuid TEXT NOT NULL, tag_id TEXT NOT NULL, equipped INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(uuid, tag_id), FOREIGN KEY(uuid) REFERENCES players(uuid) ON DELETE CASCADE)");
             statement.executeUpdate("CREATE TABLE IF NOT EXISTS plugin_state (state_id INTEGER PRIMARY KEY CHECK(state_id = 1), state_yaml TEXT NOT NULL)");
         } catch (SQLException exception) {
             throw new IllegalStateException("Could not create player database tables", exception);
-        }
-    }
-
-    public synchronized void saveInventory(UUID uuid, GameMode gameMode, ItemStack[] contents) {
-        long now = System.currentTimeMillis();
-        try {
-            ensurePlayer(uuid, null, now);
-            try (PreparedStatement statement = getConnection().prepareStatement("INSERT INTO player_inventories(uuid, gamemode, inventory_data, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(uuid, gamemode) DO UPDATE SET inventory_data = excluded.inventory_data, updated_at = excluded.updated_at")) {
-                statement.setString(1, uuid.toString());
-                statement.setString(2, gameMode.name());
-                statement.setBytes(3, serialize(contents));
-                statement.setLong(4, now);
-                statement.executeUpdate();
-            }
-        } catch (SQLException | IOException exception) {
-            throw new IllegalStateException("Could not save inventory for " + uuid, exception);
-        }
-    }
-
-    public synchronized ItemStack[] loadInventory(UUID uuid, GameMode gameMode) {
-        try (PreparedStatement statement = getConnection().prepareStatement("SELECT inventory_data FROM player_inventories WHERE uuid = ? AND gamemode = ?")) {
-            statement.setString(1, uuid.toString());
-            statement.setString(2, gameMode.name());
-            try (ResultSet result = statement.executeQuery()) {
-                return result.next() ? deserialize(result.getBytes(1)) : null;
-            }
-        } catch (SQLException | IOException | RuntimeException exception) {
-            throw new IllegalStateException("Could not load inventory for " + uuid, exception);
-        }
-    }
-
-    public synchronized boolean hasInventory(UUID uuid, GameMode gameMode) {
-        try (PreparedStatement statement = getConnection().prepareStatement("SELECT 1 FROM player_inventories WHERE uuid = ? AND gamemode = ?")) {
-            statement.setString(1, uuid.toString());
-            statement.setString(2, gameMode.name());
-            try (ResultSet result = statement.executeQuery()) {
-                return result.next();
-            }
-        } catch (SQLException exception) {
-            throw new IllegalStateException("Could not check inventory for " + uuid, exception);
         }
     }
 
@@ -133,7 +86,6 @@ public final class PlayerDatabase extends AbstractSqliteDatabase {
     public synchronized void migrateLegacyData(ConfigStore store) {
         try {
             if (!hasMetadata("legacy-yaml-v1")) {
-                migrateInventories(store);
                 migrateTags(store);
             }
             mergeLegacyState(store);
@@ -178,36 +130,6 @@ public final class PlayerDatabase extends AbstractSqliteDatabase {
         }
     }
 
-    private void migrateInventories(ConfigStore store) {
-        ConfigurationSection root = store.legacyData().getConfigurationSection("separate-inventories");
-        if (root == null) return;
-        for (String uuidKey : root.getKeys(false)) {
-            UUID uuid;
-            try {
-                uuid = UUID.fromString(uuidKey);
-            } catch (IllegalArgumentException ignored) {
-                continue;
-            }
-            ConfigurationSection player = root.getConfigurationSection(uuidKey);
-            if (player == null) continue;
-            for (String modeKey : player.getKeys(false)) {
-                GameMode mode;
-                try {
-                    mode = GameMode.valueOf(modeKey.toUpperCase(java.util.Locale.ROOT));
-                } catch (IllegalArgumentException ignored) {
-                    continue;
-                }
-                ConfigurationSection inventory = player.getConfigurationSection(modeKey);
-                if (inventory == null || hasInventory(uuid, mode)) continue;
-                int size = inventory.getInt("size", 41);
-                if (size < 0 || size > 1000) continue;
-                ItemStack[] contents = new ItemStack[size];
-                for (int slot = 0; slot < size; slot++) contents[slot] = inventory.getItemStack("slot." + slot);
-                saveInventory(uuid, mode, contents);
-            }
-        }
-    }
-
     private void migrateTags(ConfigStore store) {
         ConfigurationSection root = store.legacyData().getConfigurationSection("tags.players");
         if (root == null) return;
@@ -240,41 +162,6 @@ public final class PlayerDatabase extends AbstractSqliteDatabase {
             statement.setLong(3, now);
             statement.setLong(4, now);
             statement.executeUpdate();
-        }
-    }
-
-    private byte[] serialize(ItemStack[] contents) throws IOException {
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        try (DataOutputStream output = new DataOutputStream(bytes)) {
-            output.writeInt(contents.length);
-            for (ItemStack item : contents) {
-                if (item == null) {
-                    output.writeInt(-1);
-                } else {
-                    byte[] serialized = item.serializeAsBytes();
-                    output.writeInt(serialized.length);
-                    output.write(serialized);
-                }
-            }
-        }
-        return bytes.toByteArray();
-    }
-
-    private ItemStack[] deserialize(byte[] bytes) throws IOException {
-        try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(bytes))) {
-            int size = input.readInt();
-            if (size < 0 || size > 1000) throw new IOException("Invalid inventory size");
-            ItemStack[] contents = new ItemStack[size];
-            for (int slot = 0; slot < size; slot++) {
-                int length = input.readInt();
-                if (length >= 0) {
-                    if (length > 10_000_000) throw new IOException("Invalid item data length");
-                    byte[] item = input.readNBytes(length);
-                    if (item.length != length) throw new IOException("Truncated item data");
-                    contents[slot] = ItemStack.deserializeBytes(item);
-                }
-            }
-            return contents;
         }
     }
 

@@ -5,6 +5,7 @@ import com.districtx.pacifica.gui.TaxiMenu;
 import com.districtx.pacifica.gui.TrashMenu;
 import com.districtx.pacifica.database.ItemPriceDatabase;
 import com.districtx.pacifica.service.TeleportManager.TeleportContext;
+import com.districtx.pacifica.util.Items;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -31,9 +32,9 @@ public final class PacificaCommand implements CommandExecutor, TabCompleter {
         String name = command.getName().toLowerCase(Locale.ROOT);
         if (name.equals("spawn")) { return spawn(sender); }
         if (name.equals("warp")) { return warp(sender); }
-        if (name.equals("setspawn")) { if (!admin(sender) || !(sender instanceof Player player)) return true; plugin.store().setSpawn(player.getLocation()); sender.sendMessage(plugin.store().message("admin.spawn-set")); return true; }
+        if (name.equals("setspawn")) return setSpawn(sender);
         if (name.equals("setsafespawn")) { return setSafeSpawn(sender, args); }
-        if (name.equals("rndmwarpset")) { if (!admin(sender) || !(sender instanceof Player player) || args.length != 1) return true; plugin.warps().set(args[0], player.getLocation()); sender.sendMessage(plugin.store().message("admin.random-warp-set", "%warp%", args[0])); return true; }
+        if (name.equals("rndmwarpset")) return setRandomWarp(sender, args);
         if (name.equals("taxi")) return taxi(sender, args);
         if (name.equals("trashcan")) return trash(sender, args);
         if (name.equals("tpa")) return tpa(sender, args);
@@ -51,17 +52,46 @@ public final class PacificaCommand implements CommandExecutor, TabCompleter {
         if (name.equals("afk")) return afk(sender);
         if (name.equals("ec") || name.equals("enderchest")) return enderchest(sender);
         if (name.equals("pacificareload")) {
-            if (!admin(sender)) return true;
+            if (!admin(sender, "reload")) return true;
             plugin.reload();
             sender.sendMessage("&aPacifica-II configuration reloaded.");
             return true;
         }
         return true;
     }
+    public boolean handleAdminCommand(CommandSender sender, String commandName, String[] args) {
+        return switch (commandName) {
+            case "setspawn" -> setSpawn(sender);
+            case "setsafespawn" -> setSafeSpawn(sender, args);
+            case "rndmwarpset" -> setRandomWarp(sender, args);
+            case "taxi" -> linkTaxi(sender, args);
+            case "trashcan" -> trashAdmin(sender, args);
+            case "pacificareload" -> reload(sender);
+            default -> true;
+        };
+    }
+    private boolean setSpawn(CommandSender sender) {
+        if (!admin(sender, "spawn") || !(sender instanceof Player player)) return true;
+        plugin.store().setSpawn(player.getLocation());
+        sender.sendMessage(plugin.store().message("admin.spawn-set"));
+        return true;
+    }
+    private boolean setRandomWarp(CommandSender sender, String[] args) {
+        if (!admin(sender, "warp") || !(sender instanceof Player player) || args.length != 1) return true;
+        plugin.warps().set(args[0], player.getLocation());
+        sender.sendMessage(plugin.store().message("admin.random-warp-set", "%warp%", args[0]));
+        return true;
+    }
+    private boolean reload(CommandSender sender) {
+        if (!admin(sender, "reload")) return true;
+        plugin.reload();
+        sender.sendMessage("&aPacifica-II configuration reloaded.");
+        return true;
+    }
     private boolean spawn(CommandSender sender) { if (!(sender instanceof Player player)) return true; Location location = plugin.store().spawn(); plugin.teleports().start(player, location == null ? player.getWorld().getSpawnLocation() : location, true, TeleportContext.SPAWN, Collections.emptyMap()); return true; }
     private boolean warp(CommandSender sender) { if (!(sender instanceof Player player)) return true; String name = plugin.warps().randomName(); if (name == null) player.sendMessage(plugin.store().message("warp.no-random")); else plugin.teleports().start(player, plugin.warps().get(name), false, TeleportContext.RANDOM_WARP, Collections.singletonMap("%warp%", name)); return true; }
     private boolean setSafeSpawn(CommandSender sender, String[] args) {
-        if (!admin(sender) || !(sender instanceof Player player)) return true;
+        if (!admin(sender, "spawn") || !(sender instanceof Player player)) return true;
         if (args.length == 0) {
             if (plugin.store().safeSpawnPos1() == null || plugin.store().safeSpawnPos2() == null) {
                 sender.sendMessage(plugin.store().message("admin.safe-spawn-incomplete"));
@@ -81,26 +111,50 @@ public final class PacificaCommand implements CommandExecutor, TabCompleter {
     }
     private boolean taxi(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) return true;
-        if (args.length == 1 && args[0].equalsIgnoreCase("link")) {
-            if (!admin(sender)) return true;
-            Entity entity = player.getTargetEntity(8);
-            if (entity == null) player.sendMessage(plugin.store().message("admin.look-at-npc")); else { plugin.store().setTaxiNpc(entity.getUniqueId()); player.sendMessage(plugin.store().message("admin.taxi-linked")); }
-        } else plugin.guis().open(new TaxiMenu(plugin, player));
+        if (args.length != 0) {
+            player.sendMessage(Items.color("&eUse /adminpii taxi link to link a taxi NPC."));
+            return true;
+        }
+        plugin.guis().open(new TaxiMenu(plugin, player));
+        return true;
+    }
+    private boolean linkTaxi(CommandSender sender, String[] args) {
+        if (!admin(sender, "taxi") || args.length != 1 || !args[0].equalsIgnoreCase("link")
+                || !(sender instanceof Player player)) return true;
+        Entity entity = player.getTargetEntity(8);
+        if (entity == null) player.sendMessage(plugin.store().message("admin.look-at-npc"));
+        else {
+            plugin.store().setTaxiNpc(entity.getUniqueId());
+            player.sendMessage(plugin.store().message("admin.taxi-linked"));
+        }
         return true;
     }
     private boolean trash(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) return true;
+        if (args.length != 0) {
+            player.sendMessage(Items.color("&eUse /adminpii trash for administrative actions."));
+            return true;
+        }
+        if (!player.hasPermission(plugin.store().trashcan().getString("trashcan.use-permission", "pacifica.trashcan.use"))) {
+            player.sendMessage(plugin.store().message("trash.no-permission"));
+            return true;
+        }
+        plugin.guis().open(new TrashMenu(plugin, player));
+        return true;
+    }
+    private boolean trashAdmin(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) return true;
         if (args.length == 1 && args[0].equalsIgnoreCase("set")) {
-            if (!admin(sender)) return true;
+            if (!admin(sender, "trash")) return true;
             org.bukkit.block.Block block = player.getTargetBlockExact(6);
             if (block == null) player.sendMessage(plugin.store().message("admin.look-at-block")); else { plugin.store().addTrashCan(block.getLocation()); plugin.store().setTrashHologramEnabled(block.getLocation(), true); plugin.holograms().create(block.getLocation()); player.sendMessage(plugin.store().message("admin.trash-linked")); }
         } else if (args.length == 1 && args[0].equalsIgnoreCase("unlink")) {
-            if (!admin(sender)) return true;
+            if (!admin(sender, "trash")) return true;
             org.bukkit.block.Block block = player.getTargetBlockExact(6);
             if (block == null || !plugin.store().isTrashCan(block.getLocation())) player.sendMessage(plugin.store().message("admin.trash-not-linked"));
             else { plugin.holograms().remove(block.getLocation()); plugin.store().removeTrashCan(block.getLocation()); player.sendMessage(plugin.store().message("admin.trash-unlinked")); }
         } else if (args.length == 2 && args[0].equalsIgnoreCase("holo") && args[1].equalsIgnoreCase("toggle")) {
-            if (!admin(sender)) return true;
+            if (!admin(sender, "trash")) return true;
             org.bukkit.block.Block block = player.getTargetBlockExact(6);
             if (block == null || !plugin.store().isTrashCan(block.getLocation())) {
                 player.sendMessage(plugin.store().message("admin.trash-hologram-not-linked"));
@@ -118,17 +172,11 @@ public final class PacificaCommand implements CommandExecutor, TabCompleter {
         } else if (args.length >= 1 && args[0].equalsIgnoreCase("addprice")) {
             if (args.length != 2) player.sendMessage(plugin.store().message("admin.trash-price-usage"));
             else addTrashPrice(player, args[1]);
-        } else {
-            if (!player.hasPermission(plugin.store().trashcan().getString("trashcan.use-permission", "pacifica.trashcan.use"))) {
-                player.sendMessage(plugin.store().message("trash.no-permission"));
-                return true;
-            }
-            plugin.guis().open(new TrashMenu(plugin, player));
-        }
+        } else player.sendMessage(Items.color("&e/adminpii trash <set|unlink|holo toggle|addprice <price>>"));
         return true;
     }
     private void addTrashPrice(Player player, String value) {
-        if (!player.hasPermission("pacifica.trashcan.addprice")) {
+        if (!player.hasPermission("pacifica.trashcan.addprice") && !hasAdminPiiPermission(player, "trash")) {
             player.sendMessage(plugin.store().message("admin.no-permission"));
             return;
         }
@@ -178,7 +226,6 @@ public final class PacificaCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         if (player.getGameMode() == mode) return true;
-        plugin.separateInventories().saveInventory(player);
         player.setGameMode(mode);
         return true;
     }
@@ -222,20 +269,17 @@ public final class PacificaCommand implements CommandExecutor, TabCompleter {
         if (!sender.hasPermission(permission)) { sender.sendMessage(plugin.store().message("admin.no-permission")); return false; }
         return true;
     }
-    private boolean admin(CommandSender sender) { if (!sender.hasPermission("pacifica.admin")) sender.sendMessage(plugin.store().message("admin.no-permission")); return sender.hasPermission("pacifica.admin"); }
+    private boolean admin(CommandSender sender, String feature) {
+        boolean permitted = sender.hasPermission("pacifica.admin") || hasAdminPiiPermission(sender, feature);
+        if (!permitted) sender.sendMessage(plugin.store().message("admin.no-permission"));
+        return permitted;
+    }
+    private boolean hasAdminPiiPermission(CommandSender sender, String feature) {
+        return sender.hasPermission("pacifica.adminpii") || sender.hasPermission("pacifica.adminpii." + feature);
+    }
     @Override public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         String name = command.getName().toLowerCase(Locale.ROOT);
         if (name.equals("tpa") && args.length == 1) return Bukkit.getOnlinePlayers().stream().map(Player::getName).filter(value -> value.toLowerCase(Locale.ROOT).startsWith(args[0].toLowerCase(Locale.ROOT))).collect(Collectors.toList());
-        if (name.equals("taxi") && args.length == 1 && sender.hasPermission("pacifica.admin")) return matching(Collections.singletonList("link"), args[0]);
-        if (name.equals("rndmwarpset") && args.length == 1 && sender.hasPermission("pacifica.admin")) return matching(plugin.warps().names(), args[0]);
-        if (name.equals("setsafespawn") && args.length == 1 && sender.hasPermission("pacifica.admin")) return matching(Arrays.asList("1", "2"), args[0]);
-        if (name.equals("trashcan") && sender.hasPermission("pacifica.admin")) {
-            if (args.length == 1) return matching(Arrays.asList("set", "unlink", "holo", "addprice"), args[0]);
-            if (args.length == 2 && args[0].equalsIgnoreCase("holo")) return matching(Collections.singletonList("toggle"), args[1]);
-        }
-        if (name.equals("trashcan") && sender.hasPermission("pacifica.trashcan.addprice") && args.length == 1) {
-            return matching(Collections.singletonList("addprice"), args[0]);
-        }
         return Collections.emptyList();
     }
 

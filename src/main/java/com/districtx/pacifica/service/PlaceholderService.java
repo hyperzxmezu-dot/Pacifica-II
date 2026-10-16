@@ -32,6 +32,9 @@ public final class PlaceholderService {
         String result = text;
         String tag = player == null || plugin.tags() == null ? "" : plugin.tags().display(player.getUniqueId());
         result = result.replace("%TAG%", tag).replace("%tag%", tag);
+        String xpLevel = player == null ? "" : plugin.identity().xpLevel(player);
+        String identity = player == null ? "" : plugin.identity().display(player, true);
+        result = result.replace("%xp_level%", xpLevel).replace("%pacifica_identity%", identity);
         result = result.replace("%online%", String.valueOf(Bukkit.getOnlinePlayers().size()));
         if (player != null) {
             result = result.replace("%name%", player.getName()).replace("%player_name%", player.getName());
@@ -41,5 +44,16 @@ public final class PlaceholderService {
             catch (ReflectiveOperationException ignored) { }
         }
         return result;
+    }
+
+    public String parseExternal(Player player, String text) {
+        if (text == null) return "";
+        if (!available || player == null) return text;
+        try {
+            Object parsed = setPlaceholders.invoke(null, player, text);
+            return parsed instanceof String value ? value : text;
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            return text;
+        }
     }
 }

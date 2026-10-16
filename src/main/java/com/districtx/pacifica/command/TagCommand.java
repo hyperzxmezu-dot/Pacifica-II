@@ -28,6 +28,11 @@ public final class TagCommand implements CommandExecutor, TabCompleter {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!plugin.tags().enabled()) return true;
         if (command.getName().equalsIgnoreCase("tag")) return playerCommand(sender, args);
+        return onAdminCommand(sender, args);
+    }
+
+    public boolean onAdminCommand(CommandSender sender, String[] args) {
+        if (!plugin.tags().enabled()) return true;
         return adminCommand(sender, args);
     }
 
@@ -36,8 +41,9 @@ public final class TagCommand implements CommandExecutor, TabCompleter {
         if (!allowed(player, "pacifica.tag.use")) return true;
         if (args.length == 2 && args[0].equalsIgnoreCase("_equip")) {
             Tag tag = plugin.tags().getTag(args[1]);
-            if (tag != null && plugin.tags().hasTag(player.getUniqueId(), args[1])) {
-                plugin.tags().equipTag(player.getUniqueId(), args[1]);
+            if (tag != null && plugin.tags().hasTag(player.getUniqueId(), args[1])
+                    && plugin.tags().equipTag(player.getUniqueId(), args[1])) {
+                message(player, "tag.equipped", "%tag%", tag.getDisplayName());
             }
             return true;
         }
@@ -113,7 +119,8 @@ public final class TagCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean adminAllowed(CommandSender sender, String action) {
-        if (sender.hasPermission("pacifica.tag.admin") || sender.hasPermission("pacifica.tag.admin." + action)) return true;
+        if (sender.hasPermission("pacifica.tag.admin") || sender.hasPermission("pacifica.tag.admin." + action)
+                || sender.hasPermission("pacifica.adminpii") || sender.hasPermission("pacifica.adminpii.tag")) return true;
         return message(sender, "admin.no-permission");
     }
 
@@ -127,16 +134,31 @@ public final class TagCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (command.getName().equalsIgnoreCase("tag")) {
+            if (!(sender instanceof Player player) || (!player.hasPermission("pacifica.tag")
+                    && !player.hasPermission("pacifica.tag.use"))) return Collections.emptyList();
             if (args.length == 1) return matching(Collections.singletonList("list"), args[0]);
             return Collections.emptyList();
         }
-        if (args.length == 1) return matching(Arrays.asList("create", "edit", "give", "remove", "delete", "source", "rarity"), args[0]);
-        if (args.length == 2 && (args[0].equalsIgnoreCase("edit") || args[0].equalsIgnoreCase("delete") || args[0].equalsIgnoreCase("source") || args[0].equalsIgnoreCase("rarity"))) return matching(new ArrayList<>(plugin.tags().getTags().keySet()), args[1]);
-        if (args.length == 3 && args[0].equalsIgnoreCase("source")) return matching(Arrays.asList("Event", "Cosmetics"), args[2]);
-        if (args.length == 3 && args[0].equalsIgnoreCase("rarity")) return matching(Arrays.asList("Common", "Uncommon", "Rare", "Epic", "Legendary"), args[2]);
-        if (args.length == 2 && (args[0].equalsIgnoreCase("give") || args[0].equalsIgnoreCase("remove"))) return matching(Bukkit.getOnlinePlayers().stream().map(Player::getName).collect(Collectors.toList()), args[1]);
-        if (args.length == 3 && (args[0].equalsIgnoreCase("give") || args[0].equalsIgnoreCase("remove"))) return matching(new ArrayList<>(plugin.tags().getTags().keySet()), args[2]);
+        return onAdminTabComplete(sender, args);
+    }
+
+    public List<String> onAdminTabComplete(CommandSender sender, String[] args) {
+        if (!plugin.tags().enabled()) return Collections.emptyList();
+        if (args.length == 1) return matching(Arrays.asList("create", "edit", "give", "remove", "delete", "source", "rarity")
+                .stream().filter(action -> hasTagAdminAction(sender, action)).collect(Collectors.toList()), args[0]);
+        String action = args[0].toLowerCase(Locale.ROOT);
+        if (!hasTagAdminAction(sender, action)) return Collections.emptyList();
+        if (args.length == 2 && (action.equals("edit") || action.equals("delete") || action.equals("source") || action.equals("rarity"))) return matching(new ArrayList<>(plugin.tags().getTags().keySet()), args[1]);
+        if (args.length == 3 && action.equals("source")) return matching(Arrays.asList("Event", "Cosmetics"), args[2]);
+        if (args.length == 3 && action.equals("rarity")) return matching(Arrays.asList("Common", "Uncommon", "Rare", "Epic", "Legendary"), args[2]);
+        if (args.length == 2 && (action.equals("give") || action.equals("remove"))) return matching(Bukkit.getOnlinePlayers().stream().map(Player::getName).collect(Collectors.toList()), args[1]);
+        if (args.length == 3 && (action.equals("give") || action.equals("remove"))) return matching(new ArrayList<>(plugin.tags().getTags().keySet()), args[2]);
         return Collections.emptyList();
+    }
+
+    private boolean hasTagAdminAction(CommandSender sender, String action) {
+        return sender.hasPermission("pacifica.tag.admin") || sender.hasPermission("pacifica.tag.admin." + action)
+                || sender.hasPermission("pacifica.adminpii") || sender.hasPermission("pacifica.adminpii.tag");
     }
 
     private List<String> matching(List<String> values, String input) {

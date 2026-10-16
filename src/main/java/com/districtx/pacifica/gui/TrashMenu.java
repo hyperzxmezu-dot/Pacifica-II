@@ -3,9 +3,11 @@ package com.districtx.pacifica.gui;
 import com.districtx.pacifica.PacificaPlugin;
 import com.districtx.pacifica.util.Items;
 import com.districtx.pacifica.database.ItemPrice;
-import java.util.Locale;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.text.NumberFormat;
 import java.util.List;
+import java.util.Locale;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -23,6 +25,8 @@ public final class TrashMenu extends BaseMenu {
     private final int[] reward;
     private final ConfigurationSection settings;
     private boolean settled;
+    private boolean transitioning;
+    private boolean processingDeposit;
     public TrashMenu(PacificaPlugin plugin, Player player) {
         super(plugin, player, string(plugin, "title", "&7&lTrash Can"), 0);
         settings = plugin.store().trashcan().getConfigurationSection("trashcan-gui");
@@ -31,12 +35,16 @@ public final class TrashMenu extends BaseMenu {
         for (int slot = 0; slot < inventory.getSize(); slot++) inventory.setItem(slot, null);
         for (int slot : reward) set(slot, Items.create(string("reward-pane.material", "BLACK_STAINED_GLASS_PANE"), string("reward-pane.name", "&7")));
         set(buttonSlot("cancel"), Items.create(string("buttons.cancel.material", "REDSTONE"), string("buttons.cancel.name", "&c&lCancel"), string("buttons.cancel.lore", "&7Return all items!")));
-        set(buttonSlot("sell-entire-inventory"), Items.create(string("buttons.sell-entire-inventory.material", "DIAMOND"), string("buttons.sell-entire-inventory.name", "&6&lSell Entire Inventory"), totalLore("buttons.sell-entire-inventory.lore", "&7Total Value: &a&l$0", 0)));
-        set(buttonSlot("confirm"), Items.create(string("buttons.confirm.material", "PAPER"), string("buttons.confirm.name", "&a&lConfirm"), totalLore("buttons.confirm.lore", "&7Total Reward: &a&l$0", 0)));
+        set(buttonSlot("sell-entire-inventory"), Items.create(string("buttons.sell-entire-inventory.material", "DIAMOND"), string("buttons.sell-entire-inventory.name", "&a&lSell Entire Inventory"), totalLore("buttons.sell-entire-inventory.lore", "&7Total Value: &a&l$0", BigDecimal.ZERO)));
+        set(buttonSlot("confirm"), Items.create(string("buttons.confirm.material", "PAPER"), string("buttons.confirm.name", "&a&lConfirm"), totalLore("buttons.confirm.lore", "&7Total Reward: &a&l$0", BigDecimal.ZERO)));
         refresh();
     }
 
     @Override public void handleClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player clicker) || !clicker.getUniqueId().equals(player.getUniqueId())) {
+            event.setCancelled(true);
+            return;
+        }
         if (event.getClickedInventory() == inventory) {
             int slot = event.getSlot();
             if (slot == buttonSlot("cancel")) {
@@ -48,7 +56,7 @@ public final class TrashMenu extends BaseMenu {
             }
             if (slot == buttonSlot("sell-entire-inventory")) {
                 event.setCancelled(true);
-                sellPlayerInventory();
+                openSellConfirmation();
                 return;
             }
             if (slot == buttonSlot("confirm")) {
@@ -69,6 +77,10 @@ public final class TrashMenu extends BaseMenu {
     }
 
     @Override public void handleDrag(InventoryDragEvent event) {
+        if (!event.getWhoClicked().getUniqueId().equals(player.getUniqueId())) {
+            event.setCancelled(true);
+            return;
+        }
         for (int rawSlot : event.getRawSlots()) {
             if (rawSlot < inventory.getSize() && !isDeposit(rawSlot)) {
                 event.setCancelled(true);
@@ -81,44 +93,62 @@ public final class TrashMenu extends BaseMenu {
     private boolean isDeposit(int slot) { for (int value : deposit) if (value == slot) return true; return false; }
     private void refreshLater() { plugin.getServer().getScheduler().runTask(plugin, this::refresh); }
     private void refresh() {
-        double total = 0;
+        BigDecimal total = BigDecimal.ZERO;
         for (int i = 0; i < deposit.length; i++) {
             ItemStack item = inventory.getItem(deposit[i]);
-            double value = sellable(item) ? price(item) * item.getAmount() : 0;
-            total += value;
-            if (value <= 0) set(reward[i], Items.create(string("reward-pane.material", "BLACK_STAINED_GLASS_PANE"), string("reward-pane.name", "&7")));
+            BigDecimal value = sellable(item) ? price(item).multiply(BigDecimal.valueOf(item.getAmount())) : BigDecimal.ZERO;
+            total = total.add(value);
+            if (value.signum() <= 0) set(reward[i], Items.create(string("reward-pane.material", "BLACK_STAINED_GLASS_PANE"), string("reward-pane.name", "&7")));
             else set(reward[i], Items.create(string("reward-pane.sellable-material", "GREEN_STAINED_GLASS_PANE"), string("reward-pane.reward-name", "&a&lReward: $%value%").replace("%value%", money(value))));
         }
-        updateButton(buttonSlot("sell-entire-inventory"), string("buttons.sell-entire-inventory.material", "DIAMOND"), string("buttons.sell-entire-inventory.name", "&6&lSell Entire Inventory"), totalLore("buttons.sell-entire-inventory.lore", "&7Total Value: &a&l$%value%", inventoryTotal()));
-        updateButton(buttonSlot("confirm"), string("buttons.confirm.material", "PAPER"), string("buttons.confirm.name", "&a&lConfirm"), totalLore("buttons.confirm.lore", "&7Total Reward: &a&l$%value%", total));
+        updateButton(buttonSlot("sell-entire-inventory"), string("buttons.sell-entire-inventory.material", "DIAMOND"), string("buttons.sell-entire-inventory.name", "&a&lSell Entire Inventory"), totalLore("buttons.sell-entire-inventory.lore", "&7Total Value: &a&l$%value%", calculateInventorySellPrice()));
+        updateButton(buttonSlot("confirm"), string("buttons.confirm.material", "PAPER"), string("buttons.confirm.name", "&a&lConfirm"), totalLore("buttons.confirm.lore", "&7Total Reward: &a&l$%value%", normalizeMoney(total)));
     }
     private void updateButton(int slot, String material, String name, String lore) { set(slot, Items.create(material, name, lore)); }
-    private double inventoryTotal() { double total = 0; for (ItemStack item : player.getInventory().getStorageContents()) if (sellable(item)) total += price(item) * item.getAmount(); return total; }
-    private void sellPlayerInventory() {
-        double total = inventoryTotal();
-        if (total <= 0 || !plugin.economy().deposit(player, total)) { player.sendMessage(plugin.store().message(player, "trash.no-sellable-items")); return; }
-        ItemStack[] contents = player.getInventory().getStorageContents();
-        for (int i = 0; i < contents.length; i++) if (sellable(contents[i])) contents[i] = null;
-        player.getInventory().setStorageContents(contents);
-        player.sendMessage(plugin.store().message(player, "trash.inventory-sold", "%amount%", money(total)));
-        refresh();
+    public BigDecimal calculateInventorySellPrice() {
+        BigDecimal total = BigDecimal.ZERO;
+        for (ItemStack item : player.getInventory().getStorageContents()) {
+            if (sellable(item)) total = total.add(price(item).multiply(BigDecimal.valueOf(item.getAmount())));
+        }
+        return normalizeMoney(total);
+    }
+    private BigDecimal depositTotal() {
+        BigDecimal total = BigDecimal.ZERO;
+        for (int slot : deposit) {
+            ItemStack item = inventory.getItem(slot);
+            if (sellable(item)) total = total.add(price(item).multiply(BigDecimal.valueOf(item.getAmount())));
+        }
+        return normalizeMoney(total);
+    }
+    private void openSellConfirmation() {
+        if (calculateInventorySellPrice().signum() <= 0) {
+            player.sendMessage(plugin.store().message(player, "trash.no-sellable-items"));
+            return;
+        }
+        transitioning = true;
+        open(new TrashSellConfirmationMenu(plugin, player, this));
     }
     private void confirm() {
-        double total = 0;
-        for (int i : deposit) { ItemStack item = inventory.getItem(i); if (sellable(item)) total += price(item) * item.getAmount(); }
-        if (total <= 0) { player.sendMessage(plugin.store().message(player, "trash.no-eligible-items")); return; }
-        if (!plugin.economy().deposit(player, total)) { player.sendMessage(plugin.store().message(player, "trash.transaction-failed")); returnDeposits(); settled = true; player.closeInventory(); return; }
+        if (processingDeposit) return;
+        BigDecimal total = depositTotal();
+        if (total.signum() <= 0) { player.sendMessage(plugin.store().message(player, "trash.no-eligible-items")); return; }
+        processingDeposit = true;
+        if (!plugin.economy().isAvailable() || !plugin.economy().deposit(player, total)) {
+            processingDeposit = false;
+            player.sendMessage(plugin.store().message(player, "trash.transaction-failed"));
+            return;
+        }
         for (int slot : deposit) if (sellable(inventory.getItem(slot))) inventory.setItem(slot, null);
         returnDeposits();
         settled = true;
         player.sendMessage(plugin.store().message(player, "trash.items-sold", "%amount%", money(total)));
         player.closeInventory();
     }
-    private boolean sellable(ItemStack item) { if (item == null || item.getType().isAir()) return false; String key = com.cryptomorin.xseries.XMaterial.matchXMaterial(item.getType()).name(); return price(item) > 0 && !plugin.store().protection().getStringList("protection.protected-items").stream().map(String::toUpperCase).anyMatch(key::equals); }
-    private double price(ItemStack item) {
-        if (item == null) return 0;
+    boolean sellable(ItemStack item) { if (item == null || item.getType().isAir()) return false; String key = com.cryptomorin.xseries.XMaterial.matchXMaterial(item.getType()).name(); return price(item).signum() > 0 && !plugin.store().protection().getStringList("protection.protected-items").stream().map(String::toUpperCase).anyMatch(key::equals); }
+    BigDecimal price(ItemStack item) {
+        if (item == null) return BigDecimal.ZERO;
         ItemPrice stored = plugin.itemPriceDatabase().getPrice(item);
-        return stored == null ? 0 : durabilityPrice(item, stored.getBasePrice().doubleValue());
+        return stored == null ? BigDecimal.ZERO : durabilityPrice(item, stored.getBasePrice());
     }
     private boolean sameIdentity(ItemStack item, ItemStack identity) {
         return identityItem(item).isSimilar(identityItem(identity));
@@ -134,18 +164,43 @@ public final class TrashMenu extends BaseMenu {
         }
         return identity;
     }
-    private double durabilityPrice(ItemStack item, double basePrice) {
-        if (basePrice <= 0) return 0;
+    private BigDecimal durabilityPrice(ItemStack item, BigDecimal basePrice) {
+        if (basePrice.signum() <= 0) return BigDecimal.ZERO;
         ItemMeta meta = item.getItemMeta();
         int maxDurability = item.getType().getMaxDurability();
         if (maxDurability <= 0 || !(meta instanceof Damageable damageable) || meta.isUnbreakable()) return basePrice;
-        double remaining = Math.max(0, maxDurability - damageable.getDamage());
-        double multiplier = Math.floor((remaining / maxDurability) * 10.0) / 10.0;
-        return basePrice * Math.max(0, Math.min(1, multiplier));
+        long remaining = Math.max(0, maxDurability - damageable.getDamage());
+        BigDecimal multiplier = BigDecimal.valueOf(remaining).divide(BigDecimal.valueOf(maxDurability), 1, RoundingMode.DOWN);
+        return basePrice.multiply(multiplier.max(BigDecimal.ZERO).min(BigDecimal.ONE));
     }
-    private String money(double value) { return String.format(Locale.US, "%.2f", value).replaceFirst("\\.00$", ""); }
+    private BigDecimal normalizeMoney(BigDecimal value) { return value.setScale(2, RoundingMode.HALF_UP); }
+    String money(BigDecimal value) {
+        NumberFormat format = NumberFormat.getNumberInstance(Locale.US);
+        format.setMinimumFractionDigits(0);
+        format.setMaximumFractionDigits(2);
+        return format.format(normalizeMoney(value));
+    }
     private void returnDeposits() { for (int slot : deposit) { ItemStack item = inventory.getItem(slot); if (item != null) { java.util.Map<Integer, ItemStack> leftover = player.getInventory().addItem(item); leftover.values().forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left)); inventory.setItem(slot, null); } } }
-    @Override public void handleClose(InventoryCloseEvent event) { if (!settled) returnDeposits(); }
+    private boolean hasDepositContents() { for (int slot : deposit) { ItemStack item = inventory.getItem(slot); if (item != null && !item.getType().isAir()) return true; } return false; }
+    private void retainForPlayer() { settled = false; plugin.guis().reopen(this); }
+    @Override public void handleClose(InventoryCloseEvent event) {
+        if (transitioning) { transitioning = false; return; }
+        if (settled) return;
+        settled = true;
+        if (!hasDepositContents()) return;
+        BigDecimal total = depositTotal();
+        if (total.signum() <= 0 || !plugin.economy().isAvailable() || !plugin.economy().deposit(player, total)) {
+            if (player.isOnline()) player.sendMessage(plugin.store().message(player, total.signum() <= 0 ? "trash.no-eligible-items" : "trash.transaction-failed"));
+            retainForPlayer();
+            return;
+        }
+        for (int slot : deposit) if (sellable(inventory.getItem(slot))) inventory.setItem(slot, null);
+        if (player.isOnline()) player.sendMessage(plugin.store().message(player, "trash.items-sold", "%amount%", money(total)));
+        if (hasDepositContents()) {
+            if (player.isOnline()) player.sendMessage(plugin.store().message(player, "trash.no-eligible-items"));
+            retainForPlayer();
+        }
+    }
 
     private static String string(PacificaPlugin plugin, String path, String fallback) {
         ConfigurationSection section = plugin.store().trashcan().getConfigurationSection("trashcan-gui");
@@ -153,7 +208,7 @@ public final class TrashMenu extends BaseMenu {
     }
     private String string(String path, String fallback) { return settings == null ? fallback : settings.getString(path, fallback); }
     private int buttonSlot(String button) { return settings == null ? (button.equals("cancel") ? 44 : button.equals("confirm") ? 53 : 52) : settings.getInt("buttons." + button + ".slot", button.equals("cancel") ? 44 : button.equals("confirm") ? 53 : 52); }
-    private String totalLore(String path, String fallback, double value) { return string(path, fallback).replace("%value%", money(value)); }
+    private String totalLore(String path, String fallback, BigDecimal value) { return string(path, fallback).replace("%value%", money(value)); }
     private static int[] slots(ConfigurationSection section, String path, int[] fallback) {
         if (section == null) return fallback.clone();
         List<Integer> values = section.getIntegerList(path);

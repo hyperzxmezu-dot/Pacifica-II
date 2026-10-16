@@ -1,6 +1,6 @@
 # Pacifica-II Developer API
 
-The public API is packaged in the Pacifica-II plugin under `com.districtx.pacifica.api`. It exposes Taxi/teleport, Combat Tag, and Tag services, plus their public events and GUI extension contracts. The API version in this release is **1.0.0**.
+The public API is packaged in the Pacifica-II plugin under `com.districtx.pacifica.api`. It exposes Taxi/teleport, Combat Tag, Tag, and job-menu services, plus their public events and GUI extension contracts. The API version in this release is **1.0.0**.
 
 ## Installation and optional dependency
 
@@ -170,3 +170,48 @@ Methods that inspect or modify players, locations, inventories, combat/tag state
 ## Migration notes
 
 Version 1.0.0 is the initial public contract. Consumers should depend on API interfaces and immutable snapshots, not implementation or GUI classes. Check `API_VERSION` if an integration supports multiple Pacifica-II API generations; a future major version may change contracts, while compatible additions belong in a minor release.
+
+Separate gamemode inventories have been removed as a breaking behavior change. The `PacificaPlugin.separateInventories()` accessor and its implementation are no longer available; `/gms`, `/gma`, `/gmc`, and `/gmsp` now only apply the requested Bukkit gamemode, without saving or restoring inventory contents.
+
+## Wanted placeholders and Warden menu
+
+With PlaceholderAPI installed, use `%pacifica_wanted%` for the player's five gold wanted-star symbols and `%pacifica_wantedlevel%` for the numeric wanted level. They can be combined as:
+
+```text
+%pacifica_wanted% &f(%pacifica_wantedlevel%)
+```
+
+The star placeholder follows `wanted.placeholder.enabled` (default `true`); the numeric placeholder returns the authoritative wanted level, or `0` when the player has no recorded wanted state.
+
+Right-click a linked Warden NPC to open the Warden menu. The configured fallback NPC name is `jobs.npcs.warden` (`warden_npc` by default); administrators can link an existing NPC with `/adminpii job npc warden`. Other plugins can open the same menu through the registered `JobMenuAPI` service:
+
+```java
+import com.districtx.pacifica.api.jobs.JobMenuAPI;
+import org.bukkit.Bukkit;
+
+JobMenuAPI menus = Bukkit.getServicesManager().load(JobMenuAPI.class);
+if (menus != null && menus.isAvailable()) menus.openWardenMenu(player);
+```
+
+The Warden charges `wanted.warden.price-per-star` per level (default `10000`). Removing all levels costs that price multiplied by the player's current wanted level. Set `wanted.warden.enabled` to `false` to disable Warden transactions. The transaction messages are under `wanted.warden.messages` in `config.yml`.
+
+## Administrative commands
+
+Administrative operations are available under `/adminpii`:
+
+| Command | Operation |
+|---|---|
+| `/adminpii spawn set` | Set the Pacifica spawn. |
+| `/adminpii spawn safespawn [1\|2]` | Check or set a safe-spawn position. |
+| `/adminpii warp set <name>` | Create or update a random warp at your location. |
+| `/adminpii taxi link` | Link the targeted taxi NPC. |
+| `/adminpii trash set\|unlink\|holo toggle\|addprice <amount>` | Configure trash cans, holograms, or held-item prices. |
+| `/adminpii jail <setspawn\|spawn\|release <player>\|status <player>\|reload>` | Use the existing jail administration operations. |
+| `/adminpii job npc <type>` | Link a job/Warden NPC; use `clear <type>` to remove the link. |
+| `/adminpii tag <create\|edit\|give\|remove\|delete\|source\|rarity> ...` | Manage cosmetic tags. |
+| `/adminpii supplydrop ...` | Configure rewards and manage player supply balances and active drops. |
+| `/adminpii reload` | Reload Pacifica-II configuration. |
+
+The root permission is `pacifica.adminpii`; feature permissions are `pacifica.adminpii.spawn`, `.warp`, `.taxi`, `.trash`, `.jail`, `.job`, `.tag`, and `.reload`. The root permission grants its feature permissions. Existing permission checks for each operation also remain in effect.
+
+Administrative entry points are consolidated under `/adminpii`; player commands such as `/taxi`, `/trash`, and `/tag` remain available. `/jobmode` has been removed; its similarly named `pacifica.jobmode.delay.*` permissions are still used by the job death-cooldown perks. This release has no existing Wanted Level administration or Combat Tag administration operation to expose under `/adminpii`; `/ct` remains a player-facing status command.

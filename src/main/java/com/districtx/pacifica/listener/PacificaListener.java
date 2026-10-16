@@ -18,6 +18,7 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
@@ -34,16 +35,23 @@ public final class PacificaListener implements Listener {
     public PacificaListener(PacificaPlugin plugin) { this.plugin = plugin; }
     @EventHandler public void join(PlayerJoinEvent event) {
         Player player = event.getPlayer(); plugin.statuses().clear(player);
-        Bukkit.getScheduler().runTask(plugin, () -> { if (!player.isOnline()) return; org.bukkit.Location spawn = plugin.store().spawn(); player.teleport(spawn == null ? player.getWorld().getSpawnLocation() : spawn); });
+        Bukkit.getScheduler().runTask(plugin, () -> { if (!player.isOnline()) return; org.bukkit.Location spawn = plugin.jails().isJailed(player) ? plugin.jails().getJailLocation() : plugin.store().spawn(); player.teleport(spawn == null ? player.getWorld().getSpawnLocation() : spawn); });
     }
     @EventHandler public void respawn(PlayerRespawnEvent event) {
         Player player = event.getPlayer();
+        plugin.teleports().clearSpawnProtection(player);
+        if (plugin.jails().isJailed(player)) {
+            org.bukkit.Location jail = plugin.jails().getJailLocation();
+            if (jail != null) event.setRespawnLocation(jail);
+            Bukkit.getScheduler().runTask(plugin, () -> plugin.jails().resumeAfterRespawn(player));
+            plugin.statuses().clear(player);
+            return;
+        }
         org.bukkit.Location wastedLocation = plugin.wasted().deathLocation(player);
         if (wastedLocation != null) {
             event.setRespawnLocation(wastedLocation);
             Bukkit.getScheduler().runTask(plugin, () -> {
                 if (!player.isOnline()) return;
-                plugin.separateInventories().handlePlayerRespawn(player);
                 if (plugin.wasted().isWasted(player)) {
                     player.setGameMode(org.bukkit.GameMode.SPECTATOR);
                     plugin.wasted().track(player);
@@ -54,18 +62,13 @@ public final class PacificaListener implements Listener {
         org.bukkit.Location spawn = plugin.store().spawn();
         if (spawn != null) event.setRespawnLocation(spawn);
         plugin.statuses().clear(player);
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            if (player.isOnline()) {
-                plugin.separateInventories().handlePlayerRespawn(player);
-                plugin.separateInventories().finishDeathWithoutModeChange(player);
-            }
-        });
     }
-    @EventHandler public void quit(PlayerQuitEvent event) { plugin.teleports().cancel(event.getPlayer(), null); plugin.tpa().playerQuit(event.getPlayer()); plugin.statuses().clear(event.getPlayer()); }
+    @EventHandler public void quit(PlayerQuitEvent event) { plugin.wasted().targetUnavailable(event.getPlayer()); plugin.wasted().cancel(event.getPlayer()); plugin.teleports().cancel(event.getPlayer(), null); plugin.teleports().clearSpawnProtection(event.getPlayer()); plugin.tpa().playerQuit(event.getPlayer()); plugin.statuses().clear(event.getPlayer()); }
+    @EventHandler public void worldChange(PlayerChangedWorldEvent event) { plugin.wasted().targetUnavailable(event.getPlayer()); }
     @EventHandler public void taxi(PlayerInteractEntityEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
         Entity entity = event.getRightClicked(); String plain = entity.getCustomName() == null ? "" : ChatColor.stripColor(entity.getCustomName());
-        if (entity.getUniqueId().equals(plugin.store().taxiNpc()) || plain.equalsIgnoreCase("Taxi")) { event.setCancelled(true); if (!plugin.wasted().isWasted(player) && !plugin.combatTags().isTagged(player)) plugin.guis().open(new TaxiMenu(plugin, player)); }
+        if (entity.getUniqueId().equals(plugin.store().taxiNpc()) || plain.equalsIgnoreCase("Taxi")) { event.setCancelled(true); if (!plugin.jails().isJailed(player) && !plugin.wasted().isWasted(player) && !plugin.combatTags().isTagged(player)) plugin.guis().open(new TaxiMenu(plugin, player)); }
     }
     @EventHandler public void trash(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null || !plugin.store().isTrashCan(event.getClickedBlock().getLocation())) return;
@@ -91,20 +94,21 @@ public final class PacificaListener implements Listener {
         if (source instanceof Player player && plugin.safeSpawn().contains(player.getLocation())
                 && (protectedItem(player.getInventory().getItemInMainHand()) || protectedItem(player.getInventory().getItemInOffHand()))) event.setCancelled(true);
     }
-    @EventHandler(priority = EventPriority.LOW)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void death(PlayerDeathEvent event) {
         Player player = event.getEntity();
+        Player killer = player.getKiller();
         EntityDamageEvent.DamageCause cause = player.getLastDamageCause() == null ? null : player.getLastDamageCause().getCause();
-        String type = player.getKiller() != null ? "pvp" : cause == EntityDamageEvent.DamageCause.STARVATION ? "starvation" : cause == EntityDamageEvent.DamageCause.FALL ? "fall" : "pvp";
-        ItemStack[] protectedContents = new ItemStack[player.getInventory().getSize()];
-        ItemStack[] contents = player.getInventory().getContents();
-        for (int slot = 0; slot < contents.length && slot < protectedContents.length; slot++) {
-            if (protectedItem(contents[slot])) protectedContents[slot] = contents[slot].clone();
-        }
-        event.getDrops().removeIf(this::protectedItem);
-        plugin.separateInventories().handlePlayerDeath(player, protectedContents);
+        String type = killer != null ? "pvp" : cause == EntityDamageEvent.DamageCause.STARVATION ? "starvation" : cause == EntityDamageEvent.DamageCause.FALL ? "fall" : "pvp";
+        event.setKeepLevel(true);
+        event.setDroppedExp(0);
         event.setDeathMessage(null);
-        plugin.wasted().start(player, type, player.getKiller());
+        plugin.teleports().clearSpawnProtection(player);
+        plugin.wasted().targetUnavailable(player);
+        if (!plugin.jails().isJailed(player)) plugin.wasted().start(player, type, killer);
+    }
+    static boolean shouldDropHead(double chancePercent, double roll) {
+        return chancePercent > 0.0D && roll < chancePercent / 100.0D;
     }
     @EventHandler
     public void move(PlayerMoveEvent event) {
@@ -123,7 +127,6 @@ public final class PacificaListener implements Listener {
             to.setZ(from.getZ());
             event.setTo(to);
         }
-        plugin.wasted().track(event.getPlayer());
     }
     @EventHandler public void wastedSneak(PlayerToggleSneakEvent event) { if (plugin.wasted().isWasted(event.getPlayer())) event.setCancelled(true); }
     @EventHandler public void wastedFlight(PlayerToggleFlightEvent event) { if (plugin.wasted().isWasted(event.getPlayer())) event.setCancelled(true); }
@@ -137,7 +140,7 @@ public final class PacificaListener implements Listener {
         Player player = event.getPlayer();
         if (plugin.wasted().isWasted(player) || plugin.wasted().isInternalTeleport(player) || plugin.teleports().isManagedTeleport(player)) return;
         Location destination = event.getTo();
-        if (destination != null) plugin.teleports().handleExternalTeleport(player, destination);
+        if (destination != null) plugin.teleports().handleExternalTeleport(player, event.getFrom(), destination);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
