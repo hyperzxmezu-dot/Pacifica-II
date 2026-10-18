@@ -7,6 +7,7 @@ import com.districtx.pacifica.command.BribeCommand;
 import com.districtx.pacifica.command.BountyTrackCommand;
 import com.districtx.pacifica.command.JobNpcCommand;
 import com.districtx.pacifica.command.AdminPiiCommand;
+import com.districtx.pacifica.command.CrewCommand;
 import com.districtx.pacifica.api.taxi.TaxiAPI;
 import com.districtx.pacifica.api.combat.CombatTagAPI;
 import com.districtx.pacifica.api.tag.TagAPI;
@@ -19,10 +20,12 @@ import com.districtx.pacifica.api.jobs.BountyAPI;
 import com.districtx.pacifica.api.jobs.MedicAPI;
 import com.districtx.pacifica.api.jobs.JobMenuAPI;
 import com.districtx.pacifica.api.supplydrops.SupplyDropsAPI;
+import com.districtx.pacifica.api.crew.CrewAPI;
 import com.districtx.pacifica.gui.GuiListener;
 import com.districtx.pacifica.gui.GuiManager;
 import com.districtx.pacifica.listener.PacificaListener;
 import com.districtx.pacifica.service.EconomyManager;
+import com.districtx.pacifica.service.CrewService;
 import com.districtx.pacifica.service.CombatTagManager;
 import com.districtx.pacifica.service.HologramManager;
 import com.districtx.pacifica.service.StatusManager;
@@ -86,6 +89,7 @@ public final class PacificaPlugin extends JavaPlugin {
     private SupplyDropsManager supplyDropsManager;
     private PlayerDatabase playerDatabase;
     private ItemPriceDatabase itemPriceDatabase;
+    private CrewService crewService;
     private PacificaPaths paths;
 
     @Override
@@ -108,6 +112,7 @@ public final class PacificaPlugin extends JavaPlugin {
         teleportManager = new TeleportManager(this);
         warpManager = new WarpManager(store);
         economyManager = new EconomyManager(this);
+        crewService = new CrewService(this);
         combatTagManager = new CombatTagManager(this);
         tpaManager = new TpaManager(this);
         hologramManager = new HologramManager(this);
@@ -146,6 +151,7 @@ public final class PacificaPlugin extends JavaPlugin {
         Bukkit.getServicesManager().register(MedicAPI.class, medicManager, this, org.bukkit.plugin.ServicePriority.Normal);
         Bukkit.getServicesManager().register(JobMenuAPI.class, jobMenuManager, this, org.bukkit.plugin.ServicePriority.Normal);
         Bukkit.getServicesManager().register(SupplyDropsAPI.class, supplyDropsManager, this, org.bukkit.plugin.ServicePriority.Normal);
+        Bukkit.getServicesManager().register(CrewAPI.class, crewService, this, org.bukkit.plugin.ServicePriority.Normal);
 
         PacificaCommand command = new PacificaCommand(this);
         for (String name : new String[]{"spawn", "warp", "taxi", "trashcan", "tpa", "tpaccept", "tpdeny", "tpcancel", "ct", "heal", "feed", "invsee", "afk", "ec", "enderchest", "gms", "gma", "gmc", "gmsp"}) {
@@ -180,7 +186,13 @@ public final class PacificaPlugin extends JavaPlugin {
             getCommand("adminpii").setExecutor(adminPiiCommand);
             getCommand("adminpii").setTabCompleter(adminPiiCommand);
         }
+        if (getCommand("crew") != null) {
+            CrewCommand crewCommand = new CrewCommand(this);
+            getCommand("crew").setExecutor(crewCommand);
+            getCommand("crew").setTabCompleter(crewCommand);
+        }
         Bukkit.getPluginManager().registerEvents(new GuiListener(guiManager), this);
+        Bukkit.getPluginManager().registerEvents(new com.districtx.pacifica.listener.CrewProgressionListener(this), this);
         Bukkit.getPluginManager().registerEvents(jobMenuManager, this);
         Bukkit.getPluginManager().registerEvents(supplyDropsManager, this);
         Bukkit.getPluginManager().registerEvents(jobWantedManager, this);
@@ -218,6 +230,7 @@ public final class PacificaPlugin extends JavaPlugin {
         if (tagManager != null) tagManager.stop();
         if (identityDisplayResolver != null) identityDisplayResolver.stop();
         if (supplyDropsManager != null) supplyDropsManager.stop();
+        if (crewService != null) crewService.close();
         if (store != null) store.save();
         if (itemPriceDatabase != null) itemPriceDatabase.close();
         if (playerDatabase != null) playerDatabase.close();
@@ -257,6 +270,7 @@ public final class PacificaPlugin extends JavaPlugin {
     public SupplyDropsManager supplyDrops() { return supplyDropsManager; }
     public PlayerDatabase playerDatabase() { return playerDatabase; }
     public ItemPriceDatabase itemPriceDatabase() { return itemPriceDatabase; }
+    public CrewService crews() { return crewService; }
     public PacificaPaths paths() {
         if (paths == null) paths = new PacificaPaths(this);
         return paths;

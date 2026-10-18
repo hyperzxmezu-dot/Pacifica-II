@@ -216,3 +216,20 @@ medic:
     flash: 1000
     pillow: 1000
     breath: 1000
+crew:
+  creation-cost: 50000
+  minimum-player-level: 5
+  base-member-limit: 10
+  invitation-expiration-hours: 24
+  name-min-length: 3
+  name-max-length: 16
+  name-pattern: '[A-Za-z0-9_]+'
+  reserved-names:
+    - admin
+    - staff
+    - owner
+  progression:
+    maximum-level: 50
+    total-xp: 413250
+    player-kill-xp: 10
+    kill-cooldown-hours: 24

@@ -1,0 +1,23 @@
+package com.districtx.pacifica.api.crew;
+
+public enum CrewResult {
+    SUCCESS,
+    ALREADY_IN_CREW,
+    NAME_TAKEN,
+    NAME_INVALID,
+    NAME_RESERVED,
+    INVITE_EXISTS,
+    INVITATION_NOT_FOUND,
+    INVITATION_EXPIRED,
+    ALREADY_MEMBER,
+    CREW_FULL,
+    NO_PERMISSION,
+    CANNOT_TARGET_SELF,
+    LEADER_CANNOT_LEAVE,
+    RANK_PROTECTED,
+    INVALID_TARGET,
+    NOT_IN_CREW,
+    SAME_CREW,
+    COOLDOWN,
+    FAILED
+}
